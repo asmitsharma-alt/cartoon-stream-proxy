@@ -17,7 +17,7 @@
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
-const { spawn } = require('child_process');
+const { spawn, execSync } = require('child_process');
 const { GoogleAuth } = require('google-auth-library');
 require('dotenv').config();
 
@@ -459,7 +459,10 @@ async function downloadGoogleDriveFile(fileId, destPath) {
         const outStream = fs.createWriteStream(destPath);
         res.on('data', (chunk) => {
           downloaded += chunk.length;
-          outStream.write(chunk);
+          const canContinue = outStream.write(chunk);
+          if (!canContinue) {
+            res.pause();
+          }
           const now = Date.now();
           if (now - lastLog > 1000) {
             lastLog = now;
@@ -468,6 +471,9 @@ async function downloadGoogleDriveFile(fileId, destPath) {
             const pct = totalSize > 0 ? ` (${((downloaded / totalSize) * 100).toFixed(1)}%)` : '';
             process.stdout.write(`\r📥 Downloading: ${formatBytes(downloaded)}${pct} @ ${speed} MB/s...  `);
           }
+        });
+        outStream.on('drain', () => {
+          res.resume();
         });
         res.on('end', () => {
           outStream.end();
@@ -491,12 +497,37 @@ async function remuxMovie(inputPath, outputPath, isDualAudio) {
   return new Promise((resolve, reject) => {
     let args;
     if (isDualAudio) {
-      // Remux Track 0:2 (Hindi) to AAC, keep crisp 1080p video untouched (-c:v copy), add +faststart
+      let audioMap = '0:2'; // default Hindi track for classic Doraemon movies
+      try {
+        const ffprobePath = ffmpegPath.replace(/ffmpeg(\.exe)?$/i, 'ffprobe$1') || 'ffprobe';
+        const probeOut = execSync(`"${ffprobePath}" -v error -select_streams a -show_entries stream=index:stream_tags=language,title -of json "${inputPath}"`, { encoding: 'utf8' });
+        const probeData = JSON.parse(probeOut);
+        const streams = probeData.streams || [];
+        if (streams.length > 0) {
+          const hindiStream = streams.find(s => {
+            const lang = ((s.tags && s.tags.language) || '').toLowerCase();
+            const title = ((s.tags && s.tags.title) || '').toLowerCase();
+            return lang.includes('hin') || title.includes('hin');
+          });
+          if (hindiStream) {
+            audioMap = `0:${hindiStream.index}`;
+          } else if (streams.length > 1) {
+            audioMap = `0:${streams[1].index}`;
+          } else {
+            audioMap = `0:${streams[0].index}`;
+          }
+        }
+      } catch (e) {
+        audioMap = '0:2';
+      }
+
+      console.log(`🎵 Selected Audio Track: ${audioMap}`);
+      // Remux selected Hindi track to AAC, keep crisp 1080p video untouched (-c:v copy), add +faststart
       args = [
         '-y',
         '-i', inputPath,
         '-map', '0:v:0',
-        '-map', '0:2',
+        '-map', audioMap,
         '-c:v', 'copy',
         '-c:a', 'aac',
         '-b:a', '128k',
@@ -728,7 +759,7 @@ async function run() {
   if (target.startsWith('movies-batch-')) {
     const batchNum = parseInt(target.replace('movies-batch-', ''), 10);
     const movies = JSON.parse(fs.readFileSync(path.join(__dirname, 'Doraemon_Movies_Google_Drive_Links.json'), 'utf8'));
-    const batchSize = 8;
+    const batchSize = 4; // 10 parallel cloud runners x 4 movies = 40 movies total
     const startIdx = (batchNum - 1) * batchSize;
     const endIdx = Math.min(startIdx + batchSize, movies.length);
     const batchMovies = movies.slice(startIdx, endIdx);
