@@ -496,7 +496,8 @@
           <div class="meta-details">
             <span id="nowPlayingShow">Show</span> •
             <span id="nowPlayingSeason">Season</span> •
-            <span id="nowPlayingSize">Size</span>
+            <span id="nowPlayingSize">Size</span> •
+            <span id="bufferIndicator" style="color: var(--success); font-weight: 600;">⚡ Buffering</span>
           </div>
         </div>
 
@@ -699,6 +700,22 @@
         audioSelectorContainer.style.display = 'none';
         videoPlayer.src = `/stream/${item.file_id}`;
       }
+      videoPlayer.onprogress = () => {
+        if (videoPlayer.buffered.length > 0) {
+          const end = videoPlayer.buffered.end(videoPlayer.buffered.length - 1);
+          const ahead = Math.max(0, Math.round(end - videoPlayer.currentTime));
+          document.getElementById('bufferIndicator').textContent = `⚡ Buffered: ${ahead}s ahead`;
+        }
+      };
+
+      videoPlayer.onwaiting = () => {
+        document.getElementById('bufferIndicator').textContent = '⏳ Buffering...';
+      };
+
+      videoPlayer.onplaying = () => {
+        document.getElementById('bufferIndicator').textContent = '▶ Playing Smoothly';
+      };
+
       videoPlayer.play().catch(e => console.log('Autoplay deferred:', e));
     }
 

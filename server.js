@@ -282,6 +282,7 @@ app.get('/stream/:fileId', async (req, res) => {
     const startSec = parseFloat(startTime) || 0;
 
     const ffmpegArgs = [
+      '-threads', '1',
       '-probesize', '500000',
       '-analyzeduration', '500000',
       '-fflags', '+nobuffer+fastseek',
@@ -298,8 +299,11 @@ app.get('/stream/:fileId', async (req, res) => {
       '-map', `0:${audioIdx}`,
       '-c:v', 'copy',
       '-c:a', 'aac', // Transcode selected audio to universal AAC for full browser compatibility
-      '-b:a', '192k',
+      '-b:a', '128k',
+      '-ar', '48000', // Native 48kHz avoids CPU-heavy audio resampling
       '-movflags', 'frag_keyframe+empty_moov+default_base_moof',
+      '-frag_duration', '1000000', // 1-second chunks ensures smooth, continuous buffer
+      '-min_frag_duration', '500000',
       '-f', 'mp4',
       'pipe:1'
     );
@@ -338,21 +342,20 @@ app.get('/stream/:fileId', async (req, res) => {
     });
     activeReq.end();
 
-    proc.stdout.on('data', (chunk) => {
+    // Disable proxy buffering and pipe with automatic backpressure control
+    proc.stdout.once('data', () => {
       if (!headersSent) {
         headersSent = true;
         res.status(200);
         res.setHeader('Content-Type', 'video/mp4');
         res.setHeader('Accept-Ranges', 'none');
+        res.setHeader('X-Accel-Buffering', 'no');
+        res.setHeader('Cache-Control', 'no-cache, no-transform');
+        if (res.flushHeaders) res.flushHeaders();
       }
-      res.write(chunk);
     });
 
-    proc.stdout.on('end', () => {
-      if (headersSent) {
-        res.end();
-      }
-    });
+    proc.stdout.pipe(res);
 
     proc.stderr.on('data', (d) => {
       stderrOutput += d.toString();
