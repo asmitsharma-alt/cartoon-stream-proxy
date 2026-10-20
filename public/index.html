@@ -684,8 +684,12 @@
       document.getElementById('nowPlayingSeason').textContent = item.season;
       document.getElementById('nowPlayingSize').textContent = `${item.size_mb} MB`;
 
-      // Check audio tracks and start playing with proper audio
-      await checkAudioTracks(item);
+      // 1. Immediately start direct stream (< 1s playback)
+      videoPlayer.src = `/stream/${item.file_id}`;
+      videoPlayer.play().catch(e => console.log('Autoplay deferred:', e));
+
+      // 2. Fetch audio tracks and show switcher dropdown
+      checkAudioTracks(item);
     }
 
     async function checkAudioTracks(item) {
@@ -694,11 +698,7 @@
 
       try {
         const res = await fetch(`/api/info/${item.file_id}`);
-        if (!res.ok) {
-          videoPlayer.src = `/stream/${item.file_id}`;
-          videoPlayer.play().catch(e => console.log('Autoplay deferred:', e));
-          return;
-        }
+        if (!res.ok) return;
         const info = await res.json();
 
         if (info.audio_tracks && info.audio_tracks.length > 1) {
@@ -709,38 +709,36 @@
             const opt = document.createElement('option');
             opt.value = track.index;
             opt.textContent = track.label;
-            // Prefer Hindi if available, otherwise first track
-            if (track.language.toLowerCase().includes('hin') || idx === 0) {
+            // Default select Hindi if present
+            if (track.language && track.language.toLowerCase().includes('hin')) {
               opt.selected = true;
             }
             audioSelect.appendChild(opt);
           });
 
           audioSelectorContainer.style.display = 'flex';
-          const chosenTrack = audioSelect.value;
-          videoPlayer.src = `/stream/${item.file_id}?audio=${chosenTrack}`;
-        } else {
-          videoPlayer.src = `/stream/${item.file_id}`;
         }
-        videoPlayer.play().catch(e => console.log('Autoplay deferred:', e));
       } catch (e) {
-        videoPlayer.src = `/stream/${item.file_id}`;
-        videoPlayer.play().catch(e => console.log('Autoplay deferred:', e));
+        console.error('Audio track check error:', e);
       }
     }
 
-    // Audio Track Switching (Instant with preserved timestamp)
+    // Audio Track Switching (Native browser audioTracks + fallback)
     audioSelect.onchange = () => {
-      const selected = audioSelect.value;
-      const currentTime = videoPlayer.currentTime;
-      const isPaused = videoPlayer.paused;
+      const selectedIdx = parseInt(audioSelect.value, 10);
 
-      if (selected === 'default') {
-        videoPlayer.src = `/stream/${currentItem.file_id}`;
-      } else {
-        videoPlayer.src = `/stream/${currentItem.file_id}?audio=${selected}&startTime=${Math.floor(currentTime)}`;
+      // Check if browser supports native audioTracks switching (instant 0ms switch, 0% CPU!)
+      if (videoPlayer.audioTracks && videoPlayer.audioTracks.length > 1) {
+        for (let i = 0; i < videoPlayer.audioTracks.length; i++) {
+          videoPlayer.audioTracks[i].enabled = (i === (selectedIdx - 1));
+        }
+        return;
       }
 
+      // Fallback: switch stream with timestamp preserved
+      const currentTime = videoPlayer.currentTime;
+      const isPaused = videoPlayer.paused;
+      videoPlayer.src = `/stream/${currentItem.file_id}?audio=${selectedIdx}&startTime=${Math.floor(currentTime)}`;
       videoPlayer.onloadedmetadata = () => {
         videoPlayer.currentTime = currentTime;
         if (!isPaused) videoPlayer.play();

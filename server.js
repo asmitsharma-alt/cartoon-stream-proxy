@@ -264,21 +264,11 @@ app.get('/stream/:fileId', async (req, res) => {
 
   const driveUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
 
-  const item = fileIndexMap.get(fileId);
-  const isMovie = item && item.show_key === 'doraemon_movies';
-
-  // If audio track is requested OR if it's a Doraemon movie (which has EAC3/AC3 audio),
-  // stream with AAC audio transcoding so sound is 100% audible in every browser!
-  let targetAudio = audio;
-  if ((targetAudio === undefined || targetAudio === '') && isMovie) {
-    targetAudio = (item.filename && item.filename.includes('2112 The Birth of Doraemon')) ? '1' : '2'; // Default to Hindi
-  }
-
   // ----------------------------------------------------
-  // Scenario A: Multi-Audio Stream Remuxing (e.g. Movies)
+  // Scenario A: Multi-Audio Stream Remuxing (when explicitly requested)
   // ----------------------------------------------------
-  if (targetAudio !== undefined && targetAudio !== '') {
-    const audioIdx = parseInt(targetAudio, 10);
+  if (audio !== undefined && audio !== '') {
+    const audioIdx = parseInt(audio, 10);
     const startSec = parseFloat(startTime) || 0;
 
     const ffmpegArgs = [];
