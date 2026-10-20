@@ -723,6 +723,36 @@ async function run() {
     return;
   }
 
+  if (target.startsWith('doraemon-batch-')) {
+    const batchNum = parseInt(target.replace('doraemon-batch-', ''), 10);
+    const items = JSON.parse(fs.readFileSync(path.join(__dirname, 'Doraemon_Google_Drive_Links.json'), 'utf8'));
+    const totalBatches = 4;
+    const batchSize = Math.ceil(items.length / totalBatches);
+    const startIdx = (batchNum - 1) * batchSize;
+    const endIdx = Math.min(startIdx + batchSize, items.length);
+    const batchItems = items.slice(startIdx, endIdx);
+    const concurrency = parseInt(process.env.CONCURRENCY || '4', 10);
+
+    console.log(`📺 Doraemon Batch ${batchNum}/${totalBatches} (${startIdx + 1} to ${endIdx} of ${items.length} episodes). Concurrency: ${concurrency}`);
+    let currentIndex = 0;
+    async function worker(workerId) {
+      while (currentIndex < batchItems.length) {
+        const i = currentIndex++;
+        const item = batchItems[i];
+        console.log(`\n[Worker ${workerId}][${startIdx + i + 1}/${items.length}] Processing: ${item.filename || item.title}`);
+        try {
+          await migrateFile(item, { prefix: 'episodes' });
+        } catch (err) {
+          console.error(`❌ [Worker ${workerId}] Error on item ${startIdx + i + 1}:`, err.message);
+        }
+      }
+    }
+
+    const workers = Array.from({ length: concurrency }, (_, id) => worker(id + 1));
+    await Promise.all(workers);
+    return;
+  }
+
   const catalogMap = {
     'doraemon': 'Doraemon_Google_Drive_Links.json',
     'shinchan': 'Shinchan_Google_Drive_Links.json',
@@ -733,15 +763,25 @@ async function run() {
   const catalogFile = catalogMap[target.toLowerCase()];
   if (catalogFile && fs.existsSync(path.join(__dirname, catalogFile))) {
     const items = JSON.parse(fs.readFileSync(path.join(__dirname, catalogFile), 'utf8'));
-    console.log(`📺 Found ${items.length} episodes in ${catalogFile}.`);
-    for (let i = 0; i < items.length; i++) {
-      console.log(`\n[${i + 1}/${items.length}] Processing: ${items[i].filename || items[i].title}`);
-      try {
-        await migrateFile(items[i], { prefix: 'episodes' });
-      } catch (err) {
-        console.error(`❌ Error on item ${i + 1}:`, err.message);
+    const concurrency = parseInt(process.env.CONCURRENCY || '4', 10);
+    console.log(`📺 Found ${items.length} episodes in ${catalogFile}. Concurrency: ${concurrency}`);
+
+    let currentIndex = 0;
+    async function worker(workerId) {
+      while (currentIndex < items.length) {
+        const i = currentIndex++;
+        const item = items[i];
+        console.log(`\n[Worker ${workerId}][${i + 1}/${items.length}] Processing: ${item.filename || item.title}`);
+        try {
+          await migrateFile(item, { prefix: 'episodes' });
+        } catch (err) {
+          console.error(`❌ [Worker ${workerId}] Error on item ${i + 1}:`, err.message);
+        }
       }
     }
+
+    const workers = Array.from({ length: concurrency }, (_, id) => worker(id + 1));
+    await Promise.all(workers);
     return;
   }
 
