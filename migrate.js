@@ -542,14 +542,18 @@ async function uploadFileToStratus(filePath, targetKey, token) {
 
     uploadReq.on('error', reject);
 
-    const fileStream = fs.createReadStream(filePath, { highWaterMark: 1024 * 1024 });
+    const fileStream = fs.createReadStream(filePath, { highWaterMark: 64 * 1024 });
     let uploaded = 0;
     const startTime = Date.now();
     let lastLog = 0;
 
     fileStream.on('data', (chunk) => {
       uploaded += chunk.length;
-      uploadReq.write(chunk);
+      const canContinue = uploadReq.write(chunk);
+      if (!canContinue) {
+        fileStream.pause();
+      }
+
       const now = Date.now();
       if (now - lastLog > 1000) {
         lastLog = now;
@@ -558,6 +562,10 @@ async function uploadFileToStratus(filePath, targetKey, token) {
         const pct = ((uploaded / totalSize) * 100).toFixed(1);
         process.stdout.write(`\r🚀 Uploading to Stratus: ${formatBytes(uploaded)} / ${formatBytes(totalSize)} (${pct}%) @ ${speed} MB/s...  `);
       }
+    });
+
+    uploadReq.on('drain', () => {
+      fileStream.resume();
     });
 
     fileStream.on('end', () => {
