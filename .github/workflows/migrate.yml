@@ -9,17 +9,68 @@ on:
         default: 'matrix-all'
         type: choice
         options:
+          - movies-matrix
           - matrix-all
           - sample-movie
-          - movie-04
-          - sample-episode
           - all-movies
+          - movies-batch-1
+          - movies-batch-2
+          - movies-batch-3
+          - movies-batch-4
+          - movies-batch-5
           - doraemon
           - shinchan
           - oggy
           - chhota-bheem
+          - sample-episode
 
 jobs:
+  migrate-movies-parallel:
+    if: github.event.inputs.target == 'movies-matrix'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        batch:
+          - movies-batch-1
+          - movies-batch-2
+          - movies-batch-3
+          - movies-batch-4
+          - movies-batch-5
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Install Node Dependencies
+        run: |
+          npm install --production --force
+
+      - name: Run Cloud Migration
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          ZOHO_CREDENTIALS: ${{ secrets.ZOHO_CREDENTIALS }}
+        run: |
+          node migrate.js --target "${{ matrix.batch }}"
+
+      - name: Commit & Push Updated Manifest
+        run: |
+          git config user.name "Cloud Migration Bot"
+          git config user.email "bot@users.noreply.github.com"
+          git pull --rebase || true
+          git add zoho_manifest*.json
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Update zoho_manifest_${{ matrix.batch }} [skip ci]" && git push)
+
   migrate-parallel:
     if: github.event.inputs.target == 'matrix-all'
     runs-on: ubuntu-latest
@@ -32,7 +83,6 @@ jobs:
           - shinchan
           - oggy
           - chhota-bheem
-          - all-movies
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -67,7 +117,7 @@ jobs:
           git diff --quiet && git diff --staged --quiet || (git commit -m "Update zoho_manifest_${{ matrix.show }} [skip ci]" && git push)
 
   migrate-single:
-    if: github.event.inputs.target != 'matrix-all'
+    if: github.event.inputs.target != 'matrix-all' && github.event.inputs.target != 'movies-matrix'
     runs-on: ubuntu-latest
     timeout-minutes: 360
     steps:

@@ -412,6 +412,242 @@ async function migrateFile(item, options = {}) {
 }
 
 // ==========================================
+// 4b. DISK-STAGED MOVIE MIGRATOR (FOR LARGE FILES & ACCURATE FASTSTART REMUX)
+// ==========================================
+
+async function downloadGoogleDriveFile(fileId, destPath) {
+  const driveToken = await getGoogleToken();
+  return new Promise((resolve, reject) => {
+    function fetchFromUrl(url, headers = {}) {
+      const parsedUrl = new URL(url);
+      const req = https.get(parsedUrl, { headers }, (res) => {
+        if (res.statusCode === 302 || res.statusCode === 303) {
+          return fetchFromUrl(res.headers.location);
+        }
+        if (res.statusCode !== 200) {
+          return reject(new Error(`Drive download status ${res.statusCode}: ${res.statusMessage}`));
+        }
+        const totalSize = parseInt(res.headers['content-length'] || '0', 10);
+        let downloaded = 0;
+        const startTime = Date.now();
+        let lastLog = 0;
+        const outStream = fs.createWriteStream(destPath);
+        res.on('data', (chunk) => {
+          downloaded += chunk.length;
+          outStream.write(chunk);
+          const now = Date.now();
+          if (now - lastLog > 1000) {
+            lastLog = now;
+            const elapsed = (now - startTime) / 1000;
+            const speed = elapsed > 0 ? (downloaded / (1024 * 1024) / elapsed).toFixed(1) : 0;
+            const pct = totalSize > 0 ? ` (${((downloaded / totalSize) * 100).toFixed(1)}%)` : '';
+            process.stdout.write(`\r📥 Downloading: ${formatBytes(downloaded)}${pct} @ ${speed} MB/s...  `);
+          }
+        });
+        res.on('end', () => {
+          outStream.end();
+          console.log(`\n✅ Download complete: ${formatBytes(downloaded)}`);
+          resolve(destPath);
+        });
+        res.on('error', (err) => {
+          outStream.destroy();
+          reject(err);
+        });
+      });
+      req.on('error', reject);
+    }
+
+    const driveUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`;
+    fetchFromUrl(driveUrl, { 'Authorization': `Bearer ${driveToken}` });
+  });
+}
+
+async function remuxMovie(inputPath, outputPath, isDualAudio) {
+  return new Promise((resolve, reject) => {
+    let args;
+    if (isDualAudio) {
+      // Remux Track 0:2 (Hindi) to AAC, keep crisp 1080p video untouched (-c:v copy), add +faststart
+      args = [
+        '-y',
+        '-i', inputPath,
+        '-map', '0:v:0',
+        '-map', '0:2',
+        '-c:v', 'copy',
+        '-c:a', 'aac',
+        '-b:a', '128k',
+        '-ar', '48000',
+        '-movflags', '+faststart',
+        outputPath
+      ];
+    } else {
+      // Single audio: keep existing stream, move moov atom to start for 0-ms browser playback
+      args = [
+        '-y',
+        '-i', inputPath,
+        '-c', 'copy',
+        '-movflags', '+faststart',
+        outputPath
+      ];
+    }
+
+    console.log(`⚙️ Remuxing with FFmpeg (${isDualAudio ? 'Dual-Audio -> Hindi AAC + faststart' : 'Single-Audio -> copy + faststart'})...`);
+    const startTime = Date.now();
+    const proc = spawn(ffmpegPath, args);
+
+    let stderr = '';
+    proc.stderr.on('data', (d) => {
+      stderr += d.toString();
+    });
+
+    proc.on('close', (code) => {
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      if (code === 0) {
+        console.log(`✅ Remuxing finished in ${elapsed}s!`);
+        resolve(outputPath);
+      } else {
+        console.error('FFmpeg error stderr:', stderr.slice(-1000));
+        reject(new Error(`FFmpeg exited with code ${code}`));
+      }
+    });
+
+    proc.on('error', reject);
+  });
+}
+
+async function uploadFileToStratus(filePath, targetKey, token) {
+  const stat = fs.statSync(filePath);
+  const totalSize = stat.size;
+  const uploadUrl = `${STRATUS_BASE_URL}/${encodeURI(targetKey)}`;
+
+  return new Promise((resolve, reject) => {
+    const uploadReq = https.request(uploadUrl, {
+      method: 'PUT',
+      headers: {
+        'Authorization': 'Zoho-oauthtoken ' + token,
+        'Content-Type': 'video/mp4',
+        'Content-Length': totalSize,
+        'overwrite': 'true'
+      }
+    }, (res) => {
+      let body = '';
+      res.on('data', c => body += c);
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve(res.statusCode);
+        } else {
+          reject(new Error(`Stratus upload failed (${res.statusCode}): ${body}`));
+        }
+      });
+    });
+
+    uploadReq.on('error', reject);
+
+    const fileStream = fs.createReadStream(filePath, { highWaterMark: 1024 * 1024 });
+    let uploaded = 0;
+    const startTime = Date.now();
+    let lastLog = 0;
+
+    fileStream.on('data', (chunk) => {
+      uploaded += chunk.length;
+      uploadReq.write(chunk);
+      const now = Date.now();
+      if (now - lastLog > 1000) {
+        lastLog = now;
+        const elapsed = (now - startTime) / 1000;
+        const speed = elapsed > 0 ? (uploaded / (1024 * 1024) / elapsed).toFixed(1) : 0;
+        const pct = ((uploaded / totalSize) * 100).toFixed(1);
+        process.stdout.write(`\r🚀 Uploading to Stratus: ${formatBytes(uploaded)} / ${formatBytes(totalSize)} (${pct}%) @ ${speed} MB/s...  `);
+      }
+    });
+
+    fileStream.on('end', () => {
+      uploadReq.end();
+    });
+
+    fileStream.on('error', (err) => {
+      uploadReq.destroy(err);
+      reject(err);
+    });
+  });
+}
+
+async function migrateMovie(item, options = {}) {
+  const fileId = item.file_id;
+  const rawFilename = item.filename || item.title || `${fileId}.mp4`;
+  const safeFilename = rawFilename.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const targetKey = `movies/${safeFilename}`;
+  const isSingleAudioMovie = rawFilename.includes('2112 The Birth') ||
+                             rawFilename.includes('Stand By Me') ||
+                             rawFilename.includes('Sky Utopia') ||
+                             rawFilename.includes('Earth Symphony') ||
+                             rawFilename.includes('Star Wars 2021');
+  const isDualAudio = !isSingleAudioMovie;
+
+  console.log(`\n======================================================`);
+  console.log(`🎬 Processing Movie: ${rawFilename}`);
+  console.log(`📦 Type: ${isDualAudio ? 'Dual-Audio (Remuxing Hindi track to AAC + faststart)' : 'Single-Audio (Copy + faststart)'}`);
+  console.log(`🎯 Stratus Target: ${targetKey}`);
+  console.log(`======================================================`);
+
+  if (manifest[fileId] && !options.force) {
+    const existingSize = await checkStratusObject(targetKey);
+    if (existingSize) {
+      console.log(`⚡ Already uploaded and verified on Zoho Stratus (${formatBytes(existingSize)})! Skipping.`);
+      return manifest[fileId];
+    }
+  }
+
+  const tmpDir = process.env.RUNNER_TEMP || require('os').tmpdir();
+  const inputPath = path.join(tmpDir, `gdrive_${fileId}.mp4`);
+  const outputPath = path.join(tmpDir, `remux_${fileId}.mp4`);
+
+  try {
+    // 1. Download
+    await downloadGoogleDriveFile(fileId, inputPath);
+
+    // 2. Remux
+    await remuxMovie(inputPath, outputPath, isDualAudio);
+
+    // Cleanup input immediately
+    try { if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath); } catch (e) {}
+
+    // 3. Upload to Stratus
+    const zohoToken = await getZohoToken();
+    await uploadFileToStratus(outputPath, targetKey, zohoToken);
+
+    // Cleanup output immediately
+    try { if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath); } catch (e) {}
+
+    // 4. Verify Range Playback
+    const publicUrl = `${STRATUS_BASE_URL}/${encodeURI(targetKey)}`;
+    process.stdout.write(`🔍 Verifying HTTP 206 Range Playback... `);
+    const rangeTest = await verifyRangePlayback(publicUrl);
+    if (rangeTest.is206) {
+      console.log(`[PASS - Native Seeking Ready]`);
+    } else {
+      console.log(`[Status: ${rangeTest.statusCode}]`);
+    }
+
+    manifest[fileId] = {
+      title: item.title || rawFilename,
+      filename: rawFilename,
+      key: targetKey,
+      url: publicUrl,
+      converted_audio: isDualAudio,
+      transferred_at: new Date().toISOString()
+    };
+    saveManifest();
+
+    console.log(`\n🎉 Permanent Zoho Stratus URL:`);
+    console.log(`👉 ${publicUrl}\n`);
+    return manifest[fileId];
+  } finally {
+    try { if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath); } catch (e) {}
+    try { if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath); } catch (e) {}
+  }
+}
+
+// ==========================================
 // 5. CATALOG MIGRATOR
 // ==========================================
 async function run() {
@@ -431,15 +667,29 @@ async function run() {
 
   if (target === 'sample-movie') {
     const movies = JSON.parse(fs.readFileSync(path.join(__dirname, 'Doraemon_Movies_Google_Drive_Links.json'), 'utf8'));
-    const movie = movies.find(m => m.filename.includes('Little Star Wars')) || movies[0];
-    await migrateFile(movie, { prefix: 'movies', isMovie: true });
+    // Default to Nobita's Little Star Wars 2021 (fast ~590MB test) or Birth of Doraemon
+    const movie = movies.find(m => m.filename.includes('Star Wars 2021')) || movies[0];
+    await migrateMovie(movie);
     return;
   }
 
-  if (target === 'movie-04') {
+  if (target.startsWith('movies-batch-')) {
+    const batchNum = parseInt(target.replace('movies-batch-', ''), 10);
     const movies = JSON.parse(fs.readFileSync(path.join(__dirname, 'Doraemon_Movies_Google_Drive_Links.json'), 'utf8'));
-    const movie = movies.find(m => m.filename.includes('Movie_04') || m.filename.includes('Undersea')) || movies[2];
-    await migrateFile(movie, { prefix: 'movies', isMovie: true });
+    const batchSize = 8;
+    const startIdx = (batchNum - 1) * batchSize;
+    const endIdx = Math.min(startIdx + batchSize, movies.length);
+    const batchMovies = movies.slice(startIdx, endIdx);
+
+    console.log(`🎬 Processing Movies Batch ${batchNum} (${startIdx + 1} to ${endIdx} of ${movies.length})`);
+    for (let i = 0; i < batchMovies.length; i++) {
+      console.log(`\n[${i + 1}/${batchMovies.length}] Movie: ${batchMovies[i].title || batchMovies[i].filename}`);
+      try {
+        await migrateMovie(batchMovies[i]);
+      } catch (err) {
+        console.error(`❌ Error on movie:`, err.message);
+      }
+    }
     return;
   }
 
@@ -449,7 +699,7 @@ async function run() {
     for (let i = 0; i < movies.length; i++) {
       console.log(`\n[${i + 1}/${movies.length}] Processing Movie: ${movies[i].title || movies[i].filename}`);
       try {
-        await migrateFile(movies[i], { prefix: 'movies', isMovie: true });
+        await migrateMovie(movies[i]);
       } catch (err) {
         console.error(`❌ Error on movie ${i + 1}:`, err.message);
       }
@@ -479,7 +729,7 @@ async function run() {
     return;
   }
 
-  console.log(`❌ Unknown target "${target}". Valid targets: sample-episode, sample-movie, movie-04, all-movies, doraemon, shinchan, oggy, chhota-bheem.`);
+  console.log(`❌ Unknown target "${target}". Valid targets: sample-episode, sample-movie, movies-batch-1..5, all-movies, doraemon, shinchan, oggy, chhota-bheem.`);
 }
 
 run().catch(console.error);
