@@ -60,38 +60,42 @@ function saveManifest() {
 // ==========================================
 let zohoAccessToken = null;
 let zohoTokenExpires = 0;
+let zohoTokenPromise = null;
 
 async function getZohoToken() {
   const now = Date.now();
   if (zohoAccessToken && zohoTokenExpires > now + 60000) {
     return zohoAccessToken;
   }
-
-  let creds = null;
-  // 1. From Environment (CI / Cloud runner)
-  if (process.env.ZOHO_CREDENTIALS) {
-    try { creds = JSON.parse(process.env.ZOHO_CREDENTIALS); } catch (e) {}
-  }
-  // 2. From Local CLI Store (Windows/local developer machine)
-  if (!creds) {
-    try {
-      const configStore = require('C:\\Users\\admin\\AppData\\Roaming\\npm\\node_modules\\zcatalyst-cli\\lib\\util_modules\\config-store.js').default;
-      const Credential = require('C:\\Users\\admin\\AppData\\Roaming\\npm\\node_modules\\zcatalyst-cli\\lib\\authentication\\credential.js').default;
-      const token = configStore.get('in.credential');
-      const c = Credential.initToken(token, false);
-      creds = {
-        client_id: c.client.id,
-        client_secret: c.client.secret,
-        refresh_token: c.rToken
-      };
-    } catch (e) {}
+  if (zohoTokenPromise) {
+    return zohoTokenPromise;
   }
 
-  if (!creds || !creds.refresh_token) {
-    throw new Error('No Zoho credentials available! Set ZOHO_CREDENTIALS or login with catalyst CLI.');
-  }
+  zohoTokenPromise = (async () => {
+    let creds = null;
+    // 1. From Environment (CI / Cloud runner)
+    if (process.env.ZOHO_CREDENTIALS) {
+      try { creds = JSON.parse(process.env.ZOHO_CREDENTIALS); } catch (e) {}
+    }
+    // 2. From Local CLI Store (Windows/local developer machine)
+    if (!creds) {
+      try {
+        const configStore = require('C:\\Users\\admin\\AppData\\Roaming\\npm\\node_modules\\zcatalyst-cli\\lib\\util_modules\\config-store.js').default;
+        const Credential = require('C:\\Users\\admin\\AppData\\Roaming\\npm\\node_modules\\zcatalyst-cli\\lib\\authentication\\credential.js').default;
+        const token = configStore.get('in.credential');
+        const c = Credential.initToken(token, false);
+        creds = {
+          client_id: c.client.id,
+          client_secret: c.client.secret,
+          refresh_token: c.rToken
+        };
+      } catch (e) {}
+    }
 
-  return new Promise((resolve, reject) => {
+    if (!creds || !creds.refresh_token) {
+      throw new Error('No Zoho credentials available! Set ZOHO_CREDENTIALS or login with catalyst CLI.');
+    }
+
     const postData = new URLSearchParams({
       refresh_token: creds.refresh_token,
       client_id: creds.client_id,
@@ -99,34 +103,55 @@ async function getZohoToken() {
       grant_type: 'refresh_token'
     }).toString();
 
-    const req = https.request('https://accounts.zoho.in/oauth/v2/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Content-Length': Buffer.byteLength(postData)
-      }
-    }, (res) => {
-      let data = '';
-      res.on('data', c => data += c);
-      res.on('end', () => {
-        try {
-          const json = JSON.parse(data);
-          if (json.access_token) {
-            zohoAccessToken = json.access_token;
-            zohoTokenExpires = now + (json.expires_in ? json.expires_in * 1000 : 3600000);
-            resolve(zohoAccessToken);
-          } else {
-            reject(new Error('Zoho token refresh failed: ' + data));
-          }
-        } catch (e) {
-          reject(new Error('Invalid token response: ' + data));
+    for (let attempt = 1; attempt <= 6; attempt++) {
+      try {
+        const token = await new Promise((resolve, reject) => {
+          const req = https.request('https://accounts.zoho.in/oauth/v2/token', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'Content-Length': Buffer.byteLength(postData)
+            }
+          }, (res) => {
+            let data = '';
+            res.on('data', c => data += c);
+            res.on('end', () => {
+              try {
+                const json = JSON.parse(data);
+                if (json.access_token) {
+                  zohoAccessToken = json.access_token;
+                  zohoTokenExpires = Date.now() + (json.expires_in ? json.expires_in * 1000 : 3600000);
+                  resolve(zohoAccessToken);
+                } else if (data.includes('too many requests') || data.includes('Access Denied')) {
+                  reject(new Error('RATE_LIMIT'));
+                } else {
+                  reject(new Error('Zoho token refresh failed: ' + data));
+                }
+              } catch (e) {
+                reject(new Error('Invalid token response: ' + data));
+              }
+            });
+          });
+          req.on('error', reject);
+          req.write(postData);
+          req.end();
+        });
+        zohoTokenPromise = null;
+        return token;
+      } catch (err) {
+        if (err.message === 'RATE_LIMIT' && attempt < 6) {
+          const delay = attempt * 2000 + Math.floor(Math.random() * 1500);
+          console.warn(`⏳ Zoho OAuth rate limit hit. Backing off for ${(delay / 1000).toFixed(1)}s (attempt ${attempt}/6)...`);
+          await new Promise(r => setTimeout(r, delay));
+        } else {
+          zohoTokenPromise = null;
+          throw err;
         }
-      });
-    });
-    req.on('error', reject);
-    req.write(postData);
-    req.end();
-  });
+      }
+    }
+  })();
+
+  return zohoTokenPromise;
 }
 
 // ==========================================
