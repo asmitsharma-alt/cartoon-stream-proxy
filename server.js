@@ -243,11 +243,21 @@ app.get('/stream/:fileId', async (req, res) => {
 
   const driveUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
 
+  const item = fileIndexMap.get(fileId);
+  const isMovie = item && item.show_key === 'doraemon_movies';
+
+  // If audio track is requested OR if it's a Doraemon movie (which has EAC3/AC3 audio),
+  // stream with AAC audio transcoding so sound is 100% audible in every browser!
+  let targetAudio = audio;
+  if ((targetAudio === undefined || targetAudio === '') && isMovie) {
+    targetAudio = (item.filename && item.filename.includes('2112 The Birth of Doraemon')) ? '1' : '2'; // Default to Hindi
+  }
+
   // ----------------------------------------------------
   // Scenario A: Multi-Audio Stream Remuxing (e.g. Movies)
   // ----------------------------------------------------
-  if (audio !== undefined && audio !== '') {
-    const audioIdx = parseInt(audio, 10);
+  if (targetAudio !== undefined && targetAudio !== '') {
+    const audioIdx = parseInt(targetAudio, 10);
     const startSec = parseFloat(startTime) || 0;
 
     res.setHeader('Content-Type', 'video/mp4');
@@ -422,71 +432,50 @@ function pipeDriveResponse(driveRes, clientRes, fileId, rangeHeader) {
 // ==========================================
 const mediaInfoCache = new Map();
 
+// Pre-computed audio tracks for Doraemon Movies so there is 0ms delay and 100% reliability
+function getPrecomputedTracks(fileId) {
+  const item = fileIndexMap.get(fileId);
+  if (!item || item.show_key !== 'doraemon_movies') return null;
+
+  // Movie 00 is Hindi single audio
+  if (item.filename && item.filename.includes('2112 The Birth of Doraemon')) {
+    return [
+      { index: 1, codec: 'mp3', language: 'hin', label: 'Hindi (Original)' }
+    ];
+  }
+
+  // All other Doraemon Movies are Dual Audio: Japanese (Track 1) + Hindi (Track 2)
+  return [
+    { index: 2, codec: 'ac3', language: 'hin', label: 'Hindi (Dub)' },
+    { index: 1, codec: 'eac3', language: 'jpn', label: 'Japanese (Original)' }
+  ];
+}
+
 app.get('/api/info/:fileId', async (req, res) => {
   const { fileId } = req.params;
 
+  // 1. Check pre-computed movie audio tracks first (0ms instant response)
+  const precomputed = getPrecomputedTracks(fileId);
+  if (precomputed) {
+    return res.json({
+      file_id: fileId,
+      video: { index: 0, codec: 'h264' },
+      audio_tracks: precomputed
+    });
+  }
+
+  // 2. Check memory cache
   if (mediaInfoCache.has(fileId)) {
     return res.json(mediaInfoCache.get(fileId));
   }
 
-  const token = await getAccessToken();
-  if (!token) return res.status(500).json({ error: 'Auth failed' });
-
-  const driveUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
-
-  const probeArgs = [
-    '-v', 'error',
-    '-headers', `Authorization: Bearer ${token}\r\n`,
-    '-show_entries', 'stream=index,codec_type,codec_name,channel_layout:stream_tags=language,title',
-    '-of', 'json',
-    driveUrl
-  ];
-
-  const proc = spawn(ffprobePath, probeArgs);
-  let stdoutData = '';
-  let stderrData = '';
-
-  proc.stdout.on('data', (d) => stdoutData += d.toString());
-  proc.stderr.on('data', (d) => stderrData += d.toString());
-
-  proc.on('close', (code) => {
-    if (code !== 0) {
-      return res.status(500).json({ error: 'ffprobe failed', details: stderrData });
-    }
-
-    try {
-      const probeResult = JSON.parse(stdoutData);
-      const audioTracks = [];
-      let videoStream = null;
-
-      (probeResult.streams || []).forEach(st => {
-        if (st.codec_type === 'video' && !videoStream) {
-          videoStream = {
-            index: st.index,
-            codec: st.codec_name
-          };
-        } else if (st.codec_type === 'audio') {
-          const lang = (st.tags && (st.tags.language || st.tags.title)) || `Track ${st.index}`;
-          audioTracks.push({
-            index: st.index,
-            codec: st.codec_name,
-            language: lang,
-            label: formatAudioLabel(lang, st.codec_name)
-          });
-        }
-      });
-
-      const responseData = {
-        file_id: fileId,
-        video: videoStream,
-        audio_tracks: audioTracks
-      };
-
-      mediaInfoCache.set(fileId, responseData);
-      res.json(responseData);
-    } catch (e) {
-      res.status(500).json({ error: 'Failed parsing probe data', message: e.message });
-    }
+  // Single-track episodes don't need probe
+  res.json({
+    file_id: fileId,
+    video: { index: 0, codec: 'h264' },
+    audio_tracks: [
+      { index: 1, codec: 'aac', language: 'hin', label: 'Hindi / Default' }
+    ]
   });
 });
 

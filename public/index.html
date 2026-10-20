@@ -684,46 +684,48 @@
       document.getElementById('nowPlayingSeason').textContent = item.season;
       document.getElementById('nowPlayingSize').textContent = `${item.size_mb} MB`;
 
-      // Set stream URL
-      const streamUrl = `/stream/${item.file_id}`;
-      videoPlayer.src = streamUrl;
-      videoPlayer.play().catch(e => console.log('Autoplay deferred:', e));
-
-      // Check audio tracks for multi-audio files (especially movies)
-      checkAudioTracks(item.file_id);
+      // Check audio tracks and start playing with proper audio
+      await checkAudioTracks(item);
     }
 
-    async function checkAudioTracks(fileId) {
+    async function checkAudioTracks(item) {
       audioSelectorContainer.style.display = 'none';
       audioSelect.innerHTML = '';
 
       try {
-        const res = await fetch(`/api/info/${fileId}`);
-        if (!res.ok) return;
+        const res = await fetch(`/api/info/${item.file_id}`);
+        if (!res.ok) {
+          videoPlayer.src = `/stream/${item.file_id}`;
+          videoPlayer.play().catch(e => console.log('Autoplay deferred:', e));
+          return;
+        }
         const info = await res.json();
 
         if (info.audio_tracks && info.audio_tracks.length > 1) {
           currentAudioTracks = info.audio_tracks;
           audioSelect.innerHTML = '';
           
-          // Add default track
-          const defOpt = document.createElement('option');
-          defOpt.value = 'default';
-          defOpt.textContent = `Default (${info.audio_tracks[0].label})`;
-          audioSelect.appendChild(defOpt);
-
-          // Add individual tracks
-          info.audio_tracks.forEach(track => {
+          info.audio_tracks.forEach((track, idx) => {
             const opt = document.createElement('option');
             opt.value = track.index;
             opt.textContent = track.label;
+            // Prefer Hindi if available, otherwise first track
+            if (track.language.toLowerCase().includes('hin') || idx === 0) {
+              opt.selected = true;
+            }
             audioSelect.appendChild(opt);
           });
 
           audioSelectorContainer.style.display = 'flex';
+          const chosenTrack = audioSelect.value;
+          videoPlayer.src = `/stream/${item.file_id}?audio=${chosenTrack}`;
+        } else {
+          videoPlayer.src = `/stream/${item.file_id}`;
         }
+        videoPlayer.play().catch(e => console.log('Autoplay deferred:', e));
       } catch (e) {
-        console.log('Single audio track detected or probe skipped.');
+        videoPlayer.src = `/stream/${item.file_id}`;
+        videoPlayer.play().catch(e => console.log('Autoplay deferred:', e));
       }
     }
 
