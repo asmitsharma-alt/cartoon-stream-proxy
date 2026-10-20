@@ -235,10 +235,19 @@ async function migrateFile(item, options = {}) {
   const safeFilename = rawFilename.replace(/[^a-zA-Z0-9._-]/g, '_');
   const targetKey = options.prefix ? `${options.prefix}/${safeFilename}` : safeFilename;
   const isMovie = options.isMovie || options.prefix === 'movies' || rawFilename.toLowerCase().includes('movie');
+  const isSingleAudioMovie = rawFilename.includes('2112 The Birth') ||
+                             rawFilename.includes('Stand By Me') ||
+                             rawFilename.includes('Sky Utopia') ||
+                             rawFilename.includes('Earth Symphony') ||
+                             rawFilename.includes('Star Wars 2021');
+
+  // Single-audio movies already have standard Hindi AAC/MP3: stream directly!
+  // Dual-audio classic movies (Movie 01-40): Remux Track 0:2 (Hindi Dub) to AAC.
+  const shouldConvertAudio = isMovie && !isSingleAudioMovie;
 
   console.log(`\n======================================================`);
   console.log(`🚀 Starting Cloud Transfer: ${rawFilename}`);
-  console.log(`📦 Type: ${isMovie ? '🎬 Movie (Converting audio to AAC on-the-fly)' : '📺 Episode (Direct Line Speed)'}`);
+  console.log(`📦 Type: ${isMovie ? (shouldConvertAudio ? '🎬 Dual-Audio Movie (Remuxing Hindi track to AAC in-memory)' : '🎬 Single-Audio Movie (Direct Line Speed)') : '📺 Episode (Direct Line Speed)'}`);
   console.log(`🎯 Target: ${targetKey}`);
   console.log(`======================================================`);
 
@@ -265,7 +274,7 @@ async function migrateFile(item, options = {}) {
       if (driveRes.statusCode === 302 || driveRes.statusCode === 303) {
         const redirectUrl = new URL(driveRes.headers.location);
         https.get(redirectUrl, (redirectRes) => {
-          handleUploadStream(redirectRes, targetKey, zohoToken, isMovie, resolve, reject);
+          handleUploadStream(redirectRes, targetKey, zohoToken, shouldConvertAudio, resolve, reject);
         }).on('error', reject);
         return;
       }
@@ -274,7 +283,7 @@ async function migrateFile(item, options = {}) {
         return reject(new Error(`Google Drive returned status ${driveRes.statusCode}: ${driveRes.statusMessage}`));
       }
 
-      handleUploadStream(driveRes, targetKey, zohoToken, isMovie, resolve, reject);
+      handleUploadStream(driveRes, targetKey, zohoToken, shouldConvertAudio, resolve, reject);
     });
 
     driveReq.on('error', reject);
@@ -331,7 +340,7 @@ async function migrateFile(item, options = {}) {
     let proc = null;
 
     if (convertAudio) {
-      // Audio Conversion: Pass video untouched (-c:v copy), convert all available audio tracks to AAC (-c:a aac)
+      // Dual-Audio Movies: Remux Hindi track 0:2 to AAC, keep original crisp 1080p video untouched (-c:v copy)
       const ffmpegArgs = [
         '-threads', '2',
         '-probesize', '1000000',
@@ -340,7 +349,7 @@ async function migrateFile(item, options = {}) {
         '-flags', 'low_delay',
         '-i', 'pipe:0',
         '-map', '0:v:0',
-        '-map', '0:a?',
+        '-map', '0:2',
         '-c:v', 'copy',
         '-c:a', 'aac',
         '-b:a', '128k',
