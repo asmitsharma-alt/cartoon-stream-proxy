@@ -11,9 +11,11 @@ require('dotenv').config();
 let ffmpegPath = 'ffmpeg';
 let ffprobePath = 'ffprobe';
 try {
-  ffmpegPath = require('ffmpeg-static') || 'ffmpeg';
+  const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
+  ffmpegPath = ffmpegInstaller.path || 'ffmpeg';
+  console.log(` FFmpeg binary loaded from: ${ffmpegPath}`);
 } catch (e) {
-  // Use system ffmpeg
+  console.log(' Using system fallback ffmpeg');
 }
 try {
   const ffprobeInstaller = require('@ffprobe-installer/ffprobe');
@@ -260,9 +262,6 @@ app.get('/stream/:fileId', async (req, res) => {
     const audioIdx = parseInt(targetAudio, 10);
     const startSec = parseFloat(startTime) || 0;
 
-    res.setHeader('Content-Type', 'video/mp4');
-    res.setHeader('Accept-Ranges', 'none'); // fragmented dynamic stream
-
     const ffmpegArgs = [];
     if (startSec > 0) {
       ffmpegArgs.push('-ss', startSec.toString());
@@ -281,21 +280,39 @@ app.get('/stream/:fileId', async (req, res) => {
       'pipe:1'
     );
 
+    let headersSent = false;
     const proc = spawn(ffmpegPath, ffmpegArgs);
 
-    proc.stdout.pipe(res);
+    proc.stdout.on('data', (chunk) => {
+      if (!headersSent) {
+        headersSent = true;
+        res.status(200);
+        res.setHeader('Content-Type', 'video/mp4');
+        res.setHeader('Accept-Ranges', 'none');
+      }
+      res.write(chunk);
+    });
 
-    proc.stderr.on('data', () => {
-      // debug logs omitted to prevent terminal spam
+    proc.stdout.on('end', () => {
+      res.end();
+    });
+
+    proc.stderr.on('data', (d) => {
+      const msg = d.toString();
+      if (msg.includes('Error') || msg.includes('failed') || msg.includes('Invalid')) {
+        console.error('FFmpeg error:', msg.trim());
+      }
     });
 
     req.on('close', () => {
-      proc.kill('SIGKILL');
+      try { proc.kill(); } catch (e) {}
     });
 
     proc.on('error', (err) => {
-      console.error('FFmpeg remux error:', err.message);
-      if (!res.headersSent) res.status(500).send('Streaming error');
+      console.error('FFmpeg spawn error:', err.message);
+      if (!headersSent && !res.headersSent) {
+        res.status(500).send('Streaming remux error: ' + err.message);
+      }
     });
 
     return;
