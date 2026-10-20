@@ -1,0 +1,56 @@
+name: Cloud-to-Cloud Migration Worker
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Target to migrate'
+        required: true
+        default: 'sample-movie'
+        type: choice
+        options:
+          - sample-movie
+          - movie-04
+          - sample-episode
+          - all-movies
+          - doraemon
+          - shinchan
+          - oggy
+          - chhota-bheem
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Install Node Dependencies
+        run: |
+          npm install --production --force
+          sudo npm install -g zcatalyst-cli
+
+      - name: Run Migration
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          ZOHO_AUTH_BUNDLE: ${{ secrets.ZOHO_AUTH_BUNDLE }}
+        run: |
+          node migrate.js --target "${{ github.event.inputs.target }}"
+
+      - name: Commit & Push Updated Manifest
+        run: |
+          git config user.name "Cloud Migration Bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add zoho_manifest.json
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Update zoho_manifest.json [skip ci]" && git push)
