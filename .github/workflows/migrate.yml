@@ -9,6 +9,7 @@ on:
         default: 'matrix-all'
         type: choice
         options:
+          - doraemon-turbo
           - doraemon-matrix
           - movie-04
           - movies-matrix
@@ -174,8 +175,60 @@ jobs:
           git add zoho_manifest*.json
           git diff --quiet && git diff --staged --quiet || (git commit -m "Update zoho_manifest_${{ matrix.batch }} [skip ci]" && git push)
 
+  migrate-doraemon-turbo:
+    if: github.event.inputs.target == 'doraemon-turbo'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        season:
+          - doraemon-s11
+          - doraemon-s12
+          - doraemon-s14
+          - doraemon-s15
+          - doraemon-s16
+          - doraemon-s17
+          - doraemon-s18
+          - doraemon-s19
+          - doraemon-s20
+          - doraemon-s21-22
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Install Node Dependencies
+        run: |
+          npm install --production --force
+
+      - name: Run Cloud Migration
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          ZOHO_CREDENTIALS: ${{ secrets.ZOHO_CREDENTIALS }}
+          CONCURRENCY: 8
+        run: |
+          node migrate.js --target "${{ matrix.season }}"
+
+      - name: Commit & Push Updated Manifest
+        run: |
+          git config user.name "Cloud Migration Bot"
+          git config user.email "bot@users.noreply.github.com"
+          git pull --rebase || true
+          git add zoho_manifest*.json
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Update zoho_manifest_${{ matrix.season }} [skip ci]" && git push)
+
   migrate-single:
-    if: github.event.inputs.target != 'matrix-all' && github.event.inputs.target != 'movies-matrix' && github.event.inputs.target != 'doraemon-matrix'
+    if: github.event.inputs.target != 'matrix-all' && github.event.inputs.target != 'movies-matrix' && github.event.inputs.target != 'doraemon-matrix' && github.event.inputs.target != 'doraemon-turbo'
     runs-on: ubuntu-latest
     timeout-minutes: 360
     steps:

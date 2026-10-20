@@ -723,6 +723,38 @@ async function run() {
     return;
   }
 
+  if (target.startsWith('doraemon-s') || target.startsWith('doraemon-season-')) {
+    const rawNum = target.replace(/^doraemon-(s|season-)/, '');
+    const items = JSON.parse(fs.readFileSync(path.join(__dirname, 'Doraemon_Google_Drive_Links.json'), 'utf8'));
+    let seasonItems;
+    if (rawNum === '21-22') {
+      seasonItems = items.filter(it => it.season === 'Season 21' || it.season === 'Season 22');
+    } else {
+      const sStr = `Season ${rawNum.padStart(2, '0')}`;
+      seasonItems = items.filter(it => it.season === sStr);
+    }
+    const concurrency = parseInt(process.env.CONCURRENCY || '8', 10);
+    console.log(`📺 Doraemon ${target} (${seasonItems.length} episodes). Concurrency: ${concurrency}`);
+
+    let currentIndex = 0;
+    async function worker(workerId) {
+      while (currentIndex < seasonItems.length) {
+        const i = currentIndex++;
+        const item = seasonItems[i];
+        console.log(`\n[Worker ${workerId}][${i + 1}/${seasonItems.length}] Processing: ${item.filename || item.title}`);
+        try {
+          await migrateFile(item, { prefix: 'episodes' });
+        } catch (err) {
+          console.error(`❌ [Worker ${workerId}] Error on item ${i + 1}:`, err.message);
+        }
+      }
+    }
+
+    const workers = Array.from({ length: concurrency }, (_, id) => worker(id + 1));
+    await Promise.all(workers);
+    return;
+  }
+
   if (target.startsWith('doraemon-batch-')) {
     const batchNum = parseInt(target.replace('doraemon-batch-', ''), 10);
     const items = JSON.parse(fs.readFileSync(path.join(__dirname, 'Doraemon_Google_Drive_Links.json'), 'utf8'));
