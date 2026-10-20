@@ -331,12 +331,11 @@ async function migrateFile(item, options = {}) {
     let proc = null;
 
     if (convertAudio) {
-      // Audio Conversion: Pass video untouched (-c:v copy), convert audio to AAC (-c:a aac)
-      const targetAudio = rawFilename.includes('2112 The Birth') ? '1' : '2';
+      // Audio Conversion: Pass video untouched (-c:v copy), convert all available audio tracks to AAC (-c:a aac)
       const ffmpegArgs = [
         '-i', 'pipe:0',
         '-map', '0:v:0',
-        '-map', `0:${targetAudio}`,
+        '-map', '0:a?',
         '-c:v', 'copy',
         '-c:a', 'aac',
         '-b:a', '128k',
@@ -346,13 +345,21 @@ async function migrateFile(item, options = {}) {
         'pipe:1'
       ];
 
-      console.log(`⚙️ Remuxing audio track 0:${targetAudio} to AAC in-memory...`);
+      console.log(`⚙️ Remuxing audio to universal AAC in-memory...`);
       proc = spawn(ffmpegPath, ffmpegArgs);
+      
+      proc.stdin.on('error', (err) => {
+        if (err.code !== 'EPIPE') console.error('FFmpeg stdin error:', err.message);
+      });
       sourceStream.pipe(proc.stdin);
+      sourceStream.on('error', () => {
+        try { proc.kill(); } catch (e) {}
+      });
+
       streamToUpload = proc.stdout;
 
       proc.on('error', (err) => {
-        console.error('FFmpeg remux error:', err.message);
+        console.error('FFmpeg spawn error:', err.message);
         uploadReq.destroy(err);
       });
     }
