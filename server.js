@@ -293,8 +293,7 @@ app.get('/stream/:fileId', async (req, res) => {
     }
 
     ffmpegArgs.push(
-      '-headers', `Authorization: Bearer ${token}\r\n`,
-      '-i', driveUrl,
+      '-i', 'pipe:0',
       '-map', '0:v:0',
       '-map', `0:${audioIdx}`,
       '-c:v', 'copy',
@@ -308,6 +307,36 @@ app.get('/stream/:fileId', async (req, res) => {
     let headersSent = false;
     let stderrOutput = '';
     const proc = spawn(ffmpegPath, ffmpegArgs);
+
+    // Stream Google Drive media directly into FFmpeg stdin
+    let activeReq = null;
+    const pipeToFFmpeg = (stream) => {
+      stream.pipe(proc.stdin);
+      stream.on('error', () => {
+        try { proc.kill(); } catch (err) {}
+      });
+    };
+
+    activeReq = https.request(driveUrl, {
+      agent: gdriveAgent,
+      headers: { 'Authorization': `Bearer ${token}` }
+    }, (driveRes) => {
+      if (driveRes.statusCode === 302 || driveRes.statusCode === 307) {
+        activeReq = https.request(driveRes.headers.location, redirRes => {
+          pipeToFFmpeg(redirRes);
+        });
+        activeReq.on('error', () => { try { proc.kill(); } catch(e){} });
+        activeReq.end();
+        return;
+      }
+      pipeToFFmpeg(driveRes);
+    });
+
+    activeReq.on('error', (err) => {
+      console.error('Drive request for FFmpeg pipe error:', err.message);
+      try { proc.kill(); } catch (e) {}
+    });
+    activeReq.end();
 
     proc.stdout.on('data', (chunk) => {
       if (!headersSent) {
@@ -327,14 +356,13 @@ app.get('/stream/:fileId', async (req, res) => {
 
     proc.stderr.on('data', (d) => {
       stderrOutput += d.toString();
-      const msg = d.toString();
-      if (msg.includes('Error') || msg.includes('failed') || msg.includes('Invalid')) {
-        console.error('FFmpeg error:', msg.trim());
-      }
     });
 
     req.on('close', () => {
       try { proc.kill(); } catch (e) {}
+      if (activeReq) {
+        try { activeReq.destroy(); } catch (e) {}
+      }
     });
 
     proc.on('close', (code) => {
