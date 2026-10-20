@@ -7,21 +7,40 @@ const { spawn } = require('child_process');
 const { GoogleAuth } = require('google-auth-library');
 require('dotenv').config();
 
-// Locate static ffmpeg and ffprobe binaries
+// Locate static ffmpeg and ffprobe binaries with direct Linux package fallback
 let ffmpegPath = 'ffmpeg';
 let ffprobePath = 'ffprobe';
-try {
-  const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
-  ffmpegPath = ffmpegInstaller.path || 'ffmpeg';
-  console.log(` FFmpeg binary loaded from: ${ffmpegPath}`);
-} catch (e) {
-  console.log(' Using system fallback ffmpeg');
+
+const linuxFfmpeg = path.join(__dirname, 'node_modules', '@ffmpeg-installer', 'linux-x64', 'ffmpeg');
+if (fs.existsSync(linuxFfmpeg)) {
+  ffmpegPath = linuxFfmpeg;
+  try { fs.chmodSync(ffmpegPath, 0o755); } catch (e) {}
+  console.log(` FFmpeg loaded from Linux package: ${ffmpegPath}`);
+} else {
+  try {
+    const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
+    ffmpegPath = ffmpegInstaller.path || 'ffmpeg';
+    if (fs.existsSync(ffmpegPath)) {
+      try { fs.chmodSync(ffmpegPath, 0o755); } catch (e) {}
+    }
+    console.log(` FFmpeg binary loaded from: ${ffmpegPath}`);
+  } catch (e) {
+    console.log(' Using system fallback ffmpeg');
+  }
 }
-try {
-  const ffprobeInstaller = require('@ffprobe-installer/ffprobe');
-  ffprobePath = ffprobeInstaller.path || 'ffprobe';
-} catch (e) {
-  // Use system ffprobe
+
+const linuxFfprobe = path.join(__dirname, 'node_modules', '@ffprobe-installer', 'linux-x64', 'ffprobe');
+if (fs.existsSync(linuxFfprobe)) {
+  ffprobePath = linuxFfprobe;
+  try { fs.chmodSync(ffprobePath, 0o755); } catch (e) {}
+} else {
+  try {
+    const ffprobeInstaller = require('@ffprobe-installer/ffprobe');
+    ffprobePath = ffprobeInstaller.path || 'ffprobe';
+    if (fs.existsSync(ffprobePath)) {
+      try { fs.chmodSync(ffprobePath, 0o755); } catch (e) {}
+    }
+  } catch (e) {}
 }
 
 const app = express();
@@ -281,6 +300,7 @@ app.get('/stream/:fileId', async (req, res) => {
     );
 
     let headersSent = false;
+    let stderrOutput = '';
     const proc = spawn(ffmpegPath, ffmpegArgs);
 
     proc.stdout.on('data', (chunk) => {
@@ -298,6 +318,7 @@ app.get('/stream/:fileId', async (req, res) => {
     });
 
     proc.stderr.on('data', (d) => {
+      stderrOutput += d.toString();
       const msg = d.toString();
       if (msg.includes('Error') || msg.includes('failed') || msg.includes('Invalid')) {
         console.error('FFmpeg error:', msg.trim());
@@ -308,10 +329,16 @@ app.get('/stream/:fileId', async (req, res) => {
       try { proc.kill(); } catch (e) {}
     });
 
+    proc.on('close', (code) => {
+      if (code !== 0 && !headersSent && !res.headersSent) {
+        res.status(500).json({ error: 'FFmpeg stream failed', code, stderr: stderrOutput });
+      }
+    });
+
     proc.on('error', (err) => {
       console.error('FFmpeg spawn error:', err.message);
       if (!headersSent && !res.headersSent) {
-        res.status(500).send('Streaming remux error: ' + err.message);
+        res.status(500).json({ error: 'FFmpeg spawn error', message: err.message, path: ffmpegPath });
       }
     });
 

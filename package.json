@@ -20,7 +20,9 @@
   "license": "MIT",
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "@ffmpeg-installer/linux-x64": "^4.1.0",
     "@ffprobe-installer/ffprobe": "^2.1.2",
+    "@ffprobe-installer/linux-x64": "^5.2.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
