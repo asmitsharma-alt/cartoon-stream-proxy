@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StreamVault — Instant Cartoon & Anime Streamer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: #131b2e;
+      --card-hover: #1c2742;
+      --accent: #6366f1;
+      --accent-hover: #4f46e5;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --border: #1e293b;
+      --success: #10b981;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header */
+    header {
+      background: rgba(19, 27, 46, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      padding: 0.85rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-weight: 800;
+      font-size: 1.25rem;
+      letter-spacing: -0.5px;
+      color: #fff;
+    }
+
+    .brand-icon {
+      width: 34px;
+      height: 34px;
+      background: linear-gradient(135deg, #6366f1, #a855f7);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+    }
+
+    .search-box {
+      flex: 1;
+      max-width: 480px;
+      position: relative;
+    }
+
+    .search-box input {
+      width: 100%;
+      background: #0f172a;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.6rem 1rem 0.6rem 2.4rem;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .search-box input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 0.85rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.8rem;
+      color: var(--success);
+      background: rgba(16, 185, 129, 0.1);
+      padding: 0.35rem 0.75rem;
+      border-radius: 20px;
+      border: 1px solid rgba(16, 185, 129, 0.2);
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      background: var(--success);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--success);
+    }
+
+    /* Main Layout */
+    .container {
+      max-width: 1400px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    /* Player Container */
+    .player-section {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      display: none;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+    }
+
+    .video-wrapper {
+      position: relative;
+      background: #000;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      max-height: 70vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      max-height: 70vh;
+      outline: none;
+    }
+
+    .player-meta {
+      padding: 1.25rem 1.5rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      border-top: 1px solid var(--border);
+      background: #0f172a;
+    }
+
+    .meta-title-box {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .meta-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+    }
+
+    .meta-details {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+
+    .player-controls-extra {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .audio-selector {
+      display: none;
+      align-items: center;
+      gap: 0.5rem;
+      background: #1e293b;
+      padding: 0.4rem 0.8rem;
+      border-radius: 8px;
+      border: 1px solid #334155;
+    }
+
+    .audio-selector select {
+      background: transparent;
+      color: #fff;
+      border: none;
+      font-size: 0.85rem;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .action-btn {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 0.45rem 0.9rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .action-btn:hover {
+      background: var(--accent-hover);
+    }
+
+    .btn-secondary {
+      background: #1e293b;
+      color: var(--text);
+      border: 1px solid #334155;
+    }
+
+    .btn-secondary:hover {
+      background: #334155;
+    }
+
+    /* Shows Tabs */
+    .tabs-nav {
+      display: flex;
+      gap: 0.5rem;
+      overflow-x: auto;
+      padding-bottom: 0.25rem;
+      scrollbar-width: thin;
+    }
+
+    .tab-btn {
+      background: var(--card-bg);
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      padding: 0.65rem 1.25rem;
+      border-radius: 12px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+
+    .tab-btn:hover {
+      color: #fff;
+      background: var(--card-hover);
+    }
+
+    .tab-btn.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    /* Season Filter Pills */
+    .seasons-row {
+      display: flex;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .season-pill {
+      background: #0f172a;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      padding: 0.35rem 0.75rem;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .season-pill:hover, .season-pill.active {
+      color: #fff;
+      background: #334155;
+      border-color: #64748b;
+    }
+
+    /* Grid Layout */
+    .items-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 1rem;
+    }
+
+    .video-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+
+    .video-card:hover {
+      transform: translateY(-2px);
+      border-color: var(--accent);
+      background: var(--card-hover);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    }
+
+    .card-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+
+    .card-play-icon {
+      width: 36px;
+      height: 36px;
+      background: rgba(99, 102, 241, 0.15);
+      color: var(--accent);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      flex-shrink: 0;
+    }
+
+    .video-card:hover .card-play-icon {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .card-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #fff;
+      line-height: 1.35;
+      word-break: break-word;
+    }
+
+    .card-bottom {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      padding-top: 0.5rem;
+    }
+
+    .badge-season {
+      background: #1e293b;
+      padding: 0.2rem 0.5rem;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(6px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 1rem;
+    }
+
+    .modal-card {
+      background: #131b2e;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      max-width: 550px;
+      width: 100%;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .code-box {
+      background: #090d16;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.85rem;
+      font-family: monospace;
+      font-size: 0.82rem;
+      color: #38bdf8;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    /* Pagination */
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      padding: 1rem 0;
+    }
+
+    .page-btn {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      color: #fff;
+      padding: 0.4rem 0.85rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+
+    .page-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .loading-spinner {
+      text-align: center;
+      padding: 3rem;
+      color: var(--text-muted);
+      font-size: 1.1rem;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <div class="brand">
+      <div class="brand-icon">▶</div>
+      <span>StreamVault</span>
+    </div>
+
+    <div class="search-box">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="searchInput" placeholder="Search 2,400+ episodes and movies...">
+    </div>
+
+    <div class="status-badge">
+      <div class="status-dot"></div>
+      <span id="libraryCount">Loading library...</span>
+    </div>
+  </header>
+
+  <!-- Container -->
+  <div class="container">
+
+    <!-- Video Player Section -->
+    <section class="player-section" id="playerSection">
+      <div class="video-wrapper">
+        <video id="videoPlayer" controls playsinline preload="auto">
+          Your browser does not support HTML5 video.
+        </video>
+      </div>
+
+      <div class="player-meta">
+        <div class="meta-title-box">
+          <h2 class="meta-title" id="nowPlayingTitle">Title</h2>
+          <div class="meta-details">
+            <span id="nowPlayingShow">Show</span> •
+            <span id="nowPlayingSeason">Season</span> •
+            <span id="nowPlayingSize">Size</span>
+          </div>
+        </div>
+
+        <div class="player-controls-extra">
+          <!-- Multi-Audio Switcher Dropdown -->
+          <div class="audio-selector" id="audioSelectorContainer">
+            <span>🌐 Audio:</span>
+            <select id="audioSelect"></select>
+          </div>
+
+          <button class="action-btn btn-secondary" id="copyUrlBtn">🔗 Copy Stream URL</button>
+          <button class="action-btn btn-secondary" id="embedBtn">&lt;/&gt; Embed Code</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Shows Tabs -->
+    <nav class="tabs-nav" id="showsTabs"></nav>
+
+    <!-- Season Filter Row -->
+    <div class="seasons-row" id="seasonsRow"></div>
+
+    <!-- Video Grid -->
+    <div class="items-grid" id="itemsGrid">
+      <div class="loading-spinner">Loading titles...</div>
+    </div>
+
+    <!-- Pagination Controls -->
+    <div class="pagination" id="paginationBox" style="display: none;">
+      <button class="page-btn" id="prevPageBtn">← Previous</button>
+      <span id="pageInfo" style="font-size: 0.85rem; color: var(--text-muted);">Page 1 of 1</span>
+      <button class="page-btn" id="nextPageBtn">Next →</button>
+    </div>
+
+  </div>
+
+  <!-- Embed Modal -->
+  <div class="modal-overlay" id="embedModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Use In Your Website / App</h3>
+        <button class="action-btn btn-secondary" id="closeModalBtn">✕</button>
+      </div>
+      <p style="font-size: 0.85rem; color: var(--text-muted);">
+        Plug this direct stream URL into HTML5, Video.js, Plyr, React Native, or Flutter:
+      </p>
+      <div class="code-box" id="embedCodeSnippet"></div>
+      <button class="action-btn" id="copySnippetBtn">📋 Copy Code</button>
+    </div>
+  </div>
+
+  <script>
+    // State
+    let currentShows = [];
+    let activeShowKey = '';
+    let activeSeason = '';
+    let currentPage = 1;
+    let currentSearch = '';
+    let currentItem = null;
+    let currentAudioTracks = [];
+
+    const videoPlayer = document.getElementById('videoPlayer');
+    const playerSection = document.getElementById('playerSection');
+    const showsTabs = document.getElementById('showsTabs');
+    const seasonsRow = document.getElementById('seasonsRow');
+    const itemsGrid = document.getElementById('itemsGrid');
+    const searchInput = document.getElementById('searchInput');
+    const libraryCount = document.getElementById('libraryCount');
+    const audioSelectorContainer = document.getElementById('audioSelectorContainer');
+    const audioSelect = document.getElementById('audioSelect');
+
+    // 1. Fetch Shows List
+    async function init() {
+      try {
+        const res = await fetch('/api/shows');
+        currentShows = await res.json();
+        
+        const total = currentShows.reduce((acc, s) => acc + s.total, 0);
+        libraryCount.textContent = `${total.toLocaleString()} Videos Ready`;
+
+        renderShowsTabs();
+        if (currentShows.length > 0) {
+          selectShow(currentShows[0].key);
+        }
+      } catch (e) {
+        itemsGrid.innerHTML = `<div class="loading-spinner">Failed to connect to proxy server.</div>`;
+      }
+    }
+
+    function renderShowsTabs() {
+      showsTabs.innerHTML = '';
+      currentShows.forEach(show => {
+        const btn = document.createElement('button');
+        btn.className = `tab-btn ${show.key === activeShowKey ? 'active' : ''}`;
+        btn.textContent = `${show.title} (${show.total})`;
+        btn.onclick = () => selectShow(show.key);
+        showsTabs.appendChild(btn);
+      });
+    }
+
+    function selectShow(showKey) {
+      activeShowKey = showKey;
+      activeSeason = '';
+      currentPage = 1;
+      renderShowsTabs();
+      renderSeasons();
+      loadItems();
+    }
+
+    function renderSeasons() {
+      const show = currentShows.find(s => s.key === activeShowKey);
+      seasonsRow.innerHTML = '';
+      if (!show || show.seasons.length <= 1) return;
+
+      const allPill = document.createElement('div');
+      allPill.className = `season-pill ${activeSeason === '' ? 'active' : ''}`;
+      allPill.textContent = 'All Seasons';
+      allPill.onclick = () => { activeSeason = ''; renderSeasons(); currentPage = 1; loadItems(); };
+      seasonsRow.appendChild(allPill);
+
+      show.seasons.forEach(season => {
+        const pill = document.createElement('div');
+        pill.className = `season-pill ${activeSeason === season ? 'active' : ''}`;
+        pill.textContent = season;
+        pill.onclick = () => { activeSeason = season; renderSeasons(); currentPage = 1; loadItems(); };
+        seasonsRow.appendChild(pill);
+      });
+    }
+
+    // 2. Fetch and Render Items
+    async function loadItems() {
+      itemsGrid.innerHTML = `<div class="loading-spinner">Loading...</div>`;
+      
+      const params = new URLSearchParams({
+        page: currentPage,
+        limit: 48
+      });
+      if (activeSeason) params.append('season', activeSeason);
+      if (currentSearch) params.append('search', currentSearch);
+
+      try {
+        const res = await fetch(`/api/shows/${activeShowKey}?${params.toString()}`);
+        const data = await res.json();
+
+        renderGrid(data.items);
+        updatePagination(data.page, data.total_pages);
+      } catch (e) {
+        itemsGrid.innerHTML = `<div class="loading-spinner">Failed loading videos.</div>`;
+      }
+    }
+
+    function renderGrid(items) {
+      if (!items || items.length === 0) {
+        itemsGrid.innerHTML = `<div class="loading-spinner">No titles found matching your search.</div>`;
+        return;
+      }
+
+      itemsGrid.innerHTML = '';
+      items.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'video-card';
+        card.innerHTML = `
+          <div class="card-top">
+            <h3 class="card-title">${escapeHtml(item.title)}</h3>
+            <div class="card-play-icon">▶</div>
+          </div>
+          <div class="card-bottom">
+            <span class="badge-season">${escapeHtml(item.season)}</span>
+            <span>${item.size_mb ? item.size_mb + ' MB' : ''}</span>
+          </div>
+        `;
+        card.onclick = () => playVideo(item);
+        itemsGrid.appendChild(card);
+      });
+    }
+
+    // 3. Play Video Engine
+    async function playVideo(item) {
+      currentItem = item;
+      playerSection.style.display = 'block';
+      playerSection.scrollIntoView({ behavior: 'smooth' });
+
+      document.getElementById('nowPlayingTitle').textContent = item.title;
+      document.getElementById('nowPlayingShow').textContent = item.show_title;
+      document.getElementById('nowPlayingSeason').textContent = item.season;
+      document.getElementById('nowPlayingSize').textContent = `${item.size_mb} MB`;
+
+      // Set stream URL
+      const streamUrl = `/stream/${item.file_id}`;
+      videoPlayer.src = streamUrl;
+      videoPlayer.play().catch(e => console.log('Autoplay deferred:', e));
+
+      // Check audio tracks for multi-audio files (especially movies)
+      checkAudioTracks(item.file_id);
+    }
+
+    async function checkAudioTracks(fileId) {
+      audioSelectorContainer.style.display = 'none';
+      audioSelect.innerHTML = '';
+
+      try {
+        const res = await fetch(`/api/info/${fileId}`);
+        if (!res.ok) return;
+        const info = await res.json();
+
+        if (info.audio_tracks && info.audio_tracks.length > 1) {
+          currentAudioTracks = info.audio_tracks;
+          audioSelect.innerHTML = '';
+          
+          // Add default track
+          const defOpt = document.createElement('option');
+          defOpt.value = 'default';
+          defOpt.textContent = `Default (${info.audio_tracks[0].label})`;
+          audioSelect.appendChild(defOpt);
+
+          // Add individual tracks
+          info.audio_tracks.forEach(track => {
+            const opt = document.createElement('option');
+            opt.value = track.index;
+            opt.textContent = track.label;
+            audioSelect.appendChild(opt);
+          });
+
+          audioSelectorContainer.style.display = 'flex';
+        }
+      } catch (e) {
+        console.log('Single audio track detected or probe skipped.');
+      }
+    }
+
+    // Audio Track Switching (Instant with preserved timestamp)
+    audioSelect.onchange = () => {
+      const selected = audioSelect.value;
+      const currentTime = videoPlayer.currentTime;
+      const isPaused = videoPlayer.paused;
+
+      if (selected === 'default') {
+        videoPlayer.src = `/stream/${currentItem.file_id}`;
+      } else {
+        videoPlayer.src = `/stream/${currentItem.file_id}?audio=${selected}&startTime=${Math.floor(currentTime)}`;
+      }
+
+      videoPlayer.onloadedmetadata = () => {
+        videoPlayer.currentTime = currentTime;
+        if (!isPaused) videoPlayer.play();
+      };
+    };
+
+    // Pagination
+    function updatePagination(page, totalPages) {
+      const box = document.getElementById('paginationBox');
+      if (totalPages <= 1) {
+        box.style.display = 'none';
+        return;
+      }
+      box.style.display = 'flex';
+      document.getElementById('pageInfo').textContent = `Page ${page} of ${totalPages}`;
+      document.getElementById('prevPageBtn').disabled = (page <= 1);
+      document.getElementById('nextPageBtn').disabled = (page >= totalPages);
+    }
+
+    document.getElementById('prevPageBtn').onclick = () => {
+      if (currentPage > 1) {
+        currentPage--;
+        loadItems();
+      }
+    };
+    document.getElementById('nextPageBtn').onclick = () => {
+      currentPage++;
+      loadItems();
+    };
+
+    // Search with 300ms debounce
+    let searchTimeout = null;
+    searchInput.oninput = (e) => {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => {
+        currentSearch = e.target.value.trim();
+        currentPage = 1;
+        loadItems();
+      }, 300);
+    };
+
+    // Copy stream URL
+    document.getElementById('copyUrlBtn').onclick = () => {
+      if (!currentItem) return;
+      const fullUrl = `${window.location.origin}/stream/${currentItem.file_id}`;
+      navigator.clipboard.writeText(fullUrl);
+      alert('Copied stream URL to clipboard:\n' + fullUrl);
+    };
+
+    // Embed Code Modal
+    const modal = document.getElementById('embedModal');
+    document.getElementById('embedBtn').onclick = () => {
+      if (!currentItem) return;
+      const fullUrl = `${window.location.origin}/stream/${currentItem.file_id}`;
+      const code = `<video controls playsinline preload="auto" src="${fullUrl}"></video>`;
+      document.getElementById('embedCodeSnippet').textContent = code;
+      modal.style.display = 'flex';
+    };
+
+    document.getElementById('closeModalBtn').onclick = () => modal.style.display = 'none';
+    modal.onclick = (e) => { if (e.target === modal) modal.style.display = 'none'; };
+
+    document.getElementById('copySnippetBtn').onclick = () => {
+      const code = document.getElementById('embedCodeSnippet').textContent;
+      navigator.clipboard.writeText(code);
+      alert('Embed code copied!');
+    };
+
+    function escapeHtml(str) {
+      return String(str || '').replace(/[&<>"']/g, s => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      })[s]);
+    }
+
+    init();
+  </script>
+</body>
+</html>

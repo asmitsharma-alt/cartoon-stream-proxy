@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+
+# Environment and secrets
+.env
+.env.local
+scoop-plus-*.json
+*-credentials.json
+*service_account*.json
+
+# Operating System
+.DS_Store
+Thumbs.db
+
+# IDE and Editor files
+.vscode/
+.idea/
+.gemini/
