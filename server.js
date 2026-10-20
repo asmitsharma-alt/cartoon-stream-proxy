@@ -314,7 +314,9 @@ app.get('/stream/:fileId', async (req, res) => {
     });
 
     proc.stdout.on('end', () => {
-      res.end();
+      if (headersSent) {
+        res.end();
+      }
     });
 
     proc.stderr.on('data', (d) => {
@@ -330,8 +332,14 @@ app.get('/stream/:fileId', async (req, res) => {
     });
 
     proc.on('close', (code) => {
-      if (code !== 0 && !headersSent && !res.headersSent) {
-        res.status(500).json({ error: 'FFmpeg stream failed', code, stderr: stderrOutput });
+      if (!headersSent && !res.headersSent) {
+        res.status(500).json({
+          error: 'FFmpeg stream failed',
+          code,
+          stderr: stderrOutput,
+          ffmpegPath,
+          ffmpegExists: fs.existsSync(ffmpegPath)
+        });
       }
     });
 
