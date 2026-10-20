@@ -692,6 +692,17 @@ async function run() {
 
   console.log(`📋 Migration Target Selected: "${target}"`);
 
+  if (target === 'oggy-missing') {
+    const item = {
+      filename: "S2E8-All Out of Shape.mp4",
+      file_id: "1mX0MXR8t6raZh2lSvPI5EkZ5YoiIbC2t",
+      title: "S2E8-All Out of Shape"
+    };
+    console.log(`🎯 Migrating Final Oggy Episode: ${item.filename}`);
+    await migrateFile(item, { prefix: 'episodes', force: true });
+    return;
+  }
+
   if (target === 'sample-episode') {
     const episodes = JSON.parse(fs.readFileSync(path.join(__dirname, 'Doraemon_Google_Drive_Links.json'), 'utf8'));
     await migrateFile(episodes[0], { prefix: 'episodes' });
