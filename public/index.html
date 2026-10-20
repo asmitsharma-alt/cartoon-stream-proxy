@@ -684,61 +684,30 @@
       document.getElementById('nowPlayingSeason').textContent = item.season;
       document.getElementById('nowPlayingSize').textContent = `${item.size_mb} MB`;
 
-      // 1. Immediately start direct stream (< 1s playback)
-      videoPlayer.src = `/stream/${item.file_id}`;
+      const isMovie = item.show_key === 'doraemon_movies';
+
+      if (isMovie) {
+        // Movies contain AC-3/EAC-3 Dolby audio, stream with ?audio=2 (Hindi AAC) for 100% audible sound
+        audioSelectorContainer.style.display = 'flex';
+        audioSelect.innerHTML = `
+          <option value="2" selected>Hindi (Dub)</option>
+          <option value="1">Japanese (Original)</option>
+        `;
+        videoPlayer.src = `/stream/${item.file_id}?audio=2`;
+      } else {
+        // TV episodes already have standard AAC/MP3, stream directly for instant play
+        audioSelectorContainer.style.display = 'none';
+        videoPlayer.src = `/stream/${item.file_id}`;
+      }
       videoPlayer.play().catch(e => console.log('Autoplay deferred:', e));
-
-      // 2. Fetch audio tracks and show switcher dropdown
-      checkAudioTracks(item);
     }
 
-    async function checkAudioTracks(item) {
-      audioSelectorContainer.style.display = 'none';
-      audioSelect.innerHTML = '';
-
-      try {
-        const res = await fetch(`/api/info/${item.file_id}`);
-        if (!res.ok) return;
-        const info = await res.json();
-
-        if (info.audio_tracks && info.audio_tracks.length > 1) {
-          currentAudioTracks = info.audio_tracks;
-          audioSelect.innerHTML = '';
-          
-          info.audio_tracks.forEach((track, idx) => {
-            const opt = document.createElement('option');
-            opt.value = track.index;
-            opt.textContent = track.label;
-            // Default select Hindi if present
-            if (track.language && track.language.toLowerCase().includes('hin')) {
-              opt.selected = true;
-            }
-            audioSelect.appendChild(opt);
-          });
-
-          audioSelectorContainer.style.display = 'flex';
-        }
-      } catch (e) {
-        console.error('Audio track check error:', e);
-      }
-    }
-
-    // Audio Track Switching (Native browser audioTracks + fallback)
+    // Audio Track Switching (Switch between Hindi & Japanese while keeping playback position)
     audioSelect.onchange = () => {
-      const selectedIdx = parseInt(audioSelect.value, 10);
-
-      // Check if browser supports native audioTracks switching (instant 0ms switch, 0% CPU!)
-      if (videoPlayer.audioTracks && videoPlayer.audioTracks.length > 1) {
-        for (let i = 0; i < videoPlayer.audioTracks.length; i++) {
-          videoPlayer.audioTracks[i].enabled = (i === (selectedIdx - 1));
-        }
-        return;
-      }
-
-      // Fallback: switch stream with timestamp preserved
+      const selected = audioSelect.value;
       const currentTime = videoPlayer.currentTime;
       const isPaused = videoPlayer.paused;
-      videoPlayer.src = `/stream/${currentItem.file_id}?audio=${selectedIdx}&startTime=${Math.floor(currentTime)}`;
+      videoPlayer.src = `/stream/${currentItem.file_id}?audio=${selected}&startTime=${Math.floor(currentTime)}`;
       videoPlayer.onloadedmetadata = () => {
         videoPlayer.currentTime = currentTime;
         if (!isPaused) videoPlayer.play();

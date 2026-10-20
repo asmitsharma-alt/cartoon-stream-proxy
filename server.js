@@ -264,14 +264,30 @@ app.get('/stream/:fileId', async (req, res) => {
 
   const driveUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
 
+  const item = fileIndexMap.get(fileId);
+  const isMovie = item && item.show_key === 'doraemon_movies';
+
+  // For Doraemon movies with Dolby audio, default to Hindi audio with AAC transcoding
+  // so sound is 100% audible in all web browsers!
+  let targetAudio = audio;
+  if ((targetAudio === undefined || targetAudio === '') && isMovie) {
+    targetAudio = (item.filename && item.filename.includes('2112 The Birth of Doraemon')) ? '1' : '2';
+  }
+
   // ----------------------------------------------------
-  // Scenario A: Multi-Audio Stream Remuxing (when explicitly requested)
+  // Scenario A: Multi-Audio / AAC Transcoded Stream (e.g. Movies)
   // ----------------------------------------------------
-  if (audio !== undefined && audio !== '') {
-    const audioIdx = parseInt(audio, 10);
+  if (targetAudio !== undefined && targetAudio !== '') {
+    const audioIdx = parseInt(targetAudio, 10);
     const startSec = parseFloat(startTime) || 0;
 
-    const ffmpegArgs = [];
+    const ffmpegArgs = [
+      '-probesize', '500000',
+      '-analyzeduration', '500000',
+      '-fflags', '+nobuffer+fastseek',
+      '-flags', 'low_delay'
+    ];
+
     if (startSec > 0) {
       ffmpegArgs.push('-ss', startSec.toString());
     }
@@ -282,7 +298,7 @@ app.get('/stream/:fileId', async (req, res) => {
       '-map', '0:v:0',
       '-map', `0:${audioIdx}`,
       '-c:v', 'copy',
-      '-c:a', 'aac', // Transcode selected audio to AAC (universally playable in Chrome/Firefox/Safari)
+      '-c:a', 'aac', // Transcode selected audio to universal AAC for full browser compatibility
       '-b:a', '192k',
       '-movflags', 'frag_keyframe+empty_moov+default_base_moof',
       '-f', 'mp4',
