@@ -9,6 +9,7 @@ on:
         default: 'matrix-all'
         type: choice
         options:
+          - movie-04
           - movies-matrix
           - matrix-all
           - sample-movie

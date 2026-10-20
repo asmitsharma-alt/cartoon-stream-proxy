@@ -673,6 +673,14 @@ async function run() {
     return;
   }
 
+  if (target === 'movie-04' || target === 'undersea') {
+    const movies = JSON.parse(fs.readFileSync(path.join(__dirname, 'Doraemon_Movies_Google_Drive_Links.json'), 'utf8'));
+    const movie = movies.find(m => m.filename.includes('Undersea') || m.filename.includes('Movie_04')) || movies[2];
+    console.log(`🎯 Targeting Undersea Movie: ${movie.title} (${movie.size_gb} GB)`);
+    await migrateMovie(movie, { force: true });
+    return;
+  }
+
   if (target.startsWith('movies-batch-')) {
     const batchNum = parseInt(target.replace('movies-batch-', ''), 10);
     const movies = JSON.parse(fs.readFileSync(path.join(__dirname, 'Doraemon_Movies_Google_Drive_Links.json'), 'utf8'));
