@@ -44,6 +44,7 @@ jobs:
       - name: Run Migration
         env:
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          ZOHO_CREDENTIALS: ${{ secrets.ZOHO_CREDENTIALS }}
           ZOHO_AUTH_BUNDLE: ${{ secrets.ZOHO_AUTH_BUNDLE }}
         run: |
           node migrate.js --target "${{ github.event.inputs.target }}"
