@@ -333,6 +333,11 @@ async function migrateFile(item, options = {}) {
     if (convertAudio) {
       // Audio Conversion: Pass video untouched (-c:v copy), convert all available audio tracks to AAC (-c:a aac)
       const ffmpegArgs = [
+        '-threads', '2',
+        '-probesize', '1000000',
+        '-analyzeduration', '1000000',
+        '-fflags', '+nobuffer+fastseek',
+        '-flags', 'low_delay',
         '-i', 'pipe:0',
         '-map', '0:v:0',
         '-map', '0:a?',
@@ -341,6 +346,7 @@ async function migrateFile(item, options = {}) {
         '-b:a', '128k',
         '-ar', '48000',
         '-movflags', 'frag_keyframe+empty_moov+default_base_moof',
+        '-frag_duration', '1000000',
         '-f', 'mp4',
         'pipe:1'
       ];
@@ -355,6 +361,9 @@ async function migrateFile(item, options = {}) {
       sourceStream.on('error', () => {
         try { proc.kill(); } catch (e) {}
       });
+
+      // Drain stderr to prevent process pipe buffer deadlocks
+      proc.stderr.on('data', () => {});
 
       streamToUpload = proc.stdout;
 
