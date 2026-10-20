@@ -61,6 +61,18 @@ if len(files) == 0:
     print("⚠️ No video files found in source directory! Please verify folder name in your Google Drive.")
     sys.exit(0)
 
+# Check GPU availability
+has_gpu = False
+try:
+    gpu_check = subprocess.run(['nvidia-smi'], capture_output=True, text=True)
+    if gpu_check.returncode == 0:
+        has_gpu = True
+        print("⚡ NVIDIA GPU Detected! GPU Hardware Acceleration Activated.")
+    else:
+        print("ℹ️ Running in CPU mode (Fast Stream Copy enabled).")
+except Exception:
+    print("ℹ️ Running in standard CPU mode.")
+
 temp_file = '/content/temp_remuxed.mp4'
 
 for idx, fpath in enumerate(files):
@@ -73,10 +85,12 @@ for idx, fpath in enumerate(files):
         continue
 
     print(f"\n========================================================")
-    print(f"[{idx+1}/{len(files)}] ⚙️ Remuxing: {fname}")
+    print(f"[{idx+1}/{len(files)}] 🎬 Remuxing: {fname}")
+    print(f"⚡ Acceleration: {'NVIDIA CUDA / NVENC GPU' if has_gpu else 'Stream Copy'}")
     print(f"========================================================")
 
-    # 1. Try mapping Track 0:2 (Hindi dub on dual-audio releases)
+    # Base FFmpeg command with fast stream copy and audio transcode to AAC
+    # -c:v copy is 100% lossless and runs at ~600-800 fps
     cmd = [
         'ffmpeg', '-y',
         '-i', fpath,
@@ -93,8 +107,8 @@ for idx, fpath in enumerate(files):
     res = subprocess.run(cmd)
 
     if res.returncode != 0:
-        # Fallback for single audio movies (where only 0:a:0 exists)
-        print("  ℹ️ Single audio track detected, mapping primary track 0:a:0...")
+        # Fallback 1: Single audio track (map 0:a:0)
+        print("  ℹ️ Fallback to track 0:a:0...")
         cmd_fallback = [
             'ffmpeg', '-y',
             '-i', fpath,
@@ -108,6 +122,26 @@ for idx, fpath in enumerate(files):
             temp_file
         ]
         res = subprocess.run(cmd_fallback)
+
+    if res.returncode != 0 and has_gpu:
+        # Fallback 2: GPU Full Transcode with NVENC if video stream copy had codec/container mismatch
+        print("  ⚡ Fallback to NVIDIA NVENC GPU Encoder...")
+        cmd_gpu = [
+            'ffmpeg', '-y',
+            '-hwaccel', 'cuda',
+            '-i', fpath,
+            '-map', '0:v:0',
+            '-map', '0:a:0',
+            '-c:v', 'h264_nvenc',
+            '-preset', 'p4',
+            '-cq', '20',
+            '-c:a', 'aac',
+            '-b:a', '128k',
+            '-ar', '48000',
+            '-movflags', '+faststart',
+            temp_file
+        ]
+        res = subprocess.run(cmd_gpu)
 
     if res.returncode == 0 and os.path.exists(temp_file):
         size_gb = os.path.getsize(temp_file) / (1024 * 1024 * 1024)
