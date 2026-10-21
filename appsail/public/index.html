@@ -672,6 +672,11 @@
 
       // Default stream URL
       let streamUrl = `/api/stream?key=${encodeURIComponent(ep.key)}`;
+      const isMkv = ep.key.toLowerCase().endsWith('.mkv');
+      const isTs = ep.key.toLowerCase().includes('stand_by_me') || ep.key.toLowerCase().includes('sky_utopia') || ep.key.toLowerCase().includes('earth_symphony');
+      if (isMkv || isTs) {
+        streamUrl += `&remux=true`;
+      }
       if (currentAudioIndex > 0) {
         streamUrl += `&audio=${currentAudioIndex}`;
       }
@@ -698,9 +703,11 @@
       const clampedSec = Math.max(0, Math.min(Math.floor(targetSeconds), dur));
       const isPaused = video.paused;
       const isMkv = activeEpisode.key.toLowerCase().endsWith('.mkv');
+      const isTs = activeEpisode.key.toLowerCase().includes('stand_by_me') || activeEpisode.key.toLowerCase().includes('sky_utopia') || activeEpisode.key.toLowerCase().includes('earth_symphony');
+      const isMultiAudio = audioSelect.options && audioSelect.options.length > 1;
 
-      // If playing with audio override OR is MKV container: reload stream with -ss offset
-      if (currentAudioIndex > 0 || isMkv) {
+      // If playing with audio override, multi-audio show, or MKV/TS container: reload stream with -ss offset
+      if (currentAudioIndex > 0 || isMkv || isTs || (isMultiAudio && currentAudioIndex !== undefined)) {
         currentStreamOffset = clampedSec;
         playerSubtitle.textContent = `⚡ Jumping to ${formatTime(clampedSec)}...`;
 

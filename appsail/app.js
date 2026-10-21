@@ -223,8 +223,10 @@ app.get('/api/stream', (req, res) => {
   const audio = req.query.audio;
   const startSec = parseFloat(req.query.t || '0');
   const isMkv = key.toLowerCase().endsWith('.mkv');
-  const hasAudioOverride = audio !== undefined && audio !== '' && audio !== '0' && audio !== 'default';
-  const useFfmpeg = hasAudioOverride || (isMkv && startSec > 0) || (startSec > 0 && req.query.audio !== undefined);
+  const isTs = key.toLowerCase().includes('stand_by_me') || key.toLowerCase().includes('sky_utopia') || key.toLowerCase().includes('earth_symphony');
+  const hasAudioOverride = audio !== undefined && audio !== '' && audio !== 'default';
+  const forceFfmpeg = req.query.remux === 'true' || isMkv || isTs;
+  const useFfmpeg = forceFfmpeg || hasAudioOverride || startSec > 0;
 
   // Option A: Dynamic FFmpeg Remux (Instant Multi-Audio Switch / MKV to MP4)
   if (useFfmpeg && fs.existsSync(FFMPEG_BIN)) {
@@ -280,7 +282,9 @@ app.get('/api/stream', (req, res) => {
   }
 
   https.get(targetUrl, { headers: requestHeaders }, (stratusRes) => {
-    res.status(stratusRes.statusCode);
+    const isRangeRequest = !!rangeHeader;
+    const statusCode = (isRangeRequest && stratusRes.statusCode === 200) ? 206 : stratusRes.statusCode;
+    res.status(statusCode);
 
     const forwardHeaders = [
       'content-type',
@@ -296,6 +300,11 @@ app.get('/api/stream', (req, res) => {
         res.setHeader(h, stratusRes.headers[h]);
       }
     });
+
+    const totalLength = stratusRes.headers['content-length'];
+    if (isRangeRequest && stratusRes.statusCode === 200 && totalLength) {
+      res.setHeader('Content-Range', `bytes 0-${parseInt(totalLength, 10) - 1}/${totalLength}`);
+    }
 
     if (!res.getHeader('accept-ranges')) {
       res.setHeader('Accept-Ranges', 'bytes');
