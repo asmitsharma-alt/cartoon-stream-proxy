@@ -351,6 +351,7 @@
       <span class="badge">NETFLIX EDITION</span>
     </a>
     <div style="display: flex; align-items: center; gap: 0.75rem;">
+      <button id="sync-btn" onclick="syncCatalogNow()" class="btn" style="padding: 0.35rem 0.75rem; font-size: 0.8rem; background: #FFDE00; color: #000; font-weight: bold; border: 2px solid #000; box-shadow: 2px 2px 0px #000; cursor: pointer;">🔄 Sync Catalog</button>
       <a href="/docs" class="btn" style="padding: 0.35rem 0.75rem; font-size: 0.8rem; background: #222; text-decoration: none;">📖 API & AI Docs</a>
       <a href="/llms.txt" target="_blank" class="btn" style="padding: 0.35rem 0.75rem; font-size: 0.8rem; background: #222; text-decoration: none;">🤖 llms.txt</a>
       <div id="status-pill" class="badge" style="background: #1b5e20;">⚡ ONLINE</div>
@@ -532,25 +533,29 @@
     };
 
     // 1. Fetch Full Catalog from AppSail API
-    async function loadCatalog() {
+    let lastCatalogVersion = null;
+
+    async function loadCatalog(maintainShowId) {
       try {
         const res = await fetch('/api/catalog');
         const data = await res.json();
         currentCatalog = data;
+        lastCatalogVersion = data.version || lastCatalogVersion;
 
         // Render Tabs
         showTabsContainer.innerHTML = '';
-        data.shows.forEach((show, idx) => {
+        data.shows.forEach((show) => {
           const tab = document.createElement('div');
-          tab.className = `tab ${idx === 0 ? 'active' : ''}`;
+          tab.className = `tab`;
           tab.textContent = show.title;
           tab.onclick = () => selectShow(show.id);
           showTabsContainer.appendChild(tab);
         });
 
-        // Default to first show
-        if (data.shows.length > 0) {
-          selectShow(data.shows[0].id);
+        // Maintain current active show or default to first
+        const targetShowId = maintainShowId || (data.shows.length > 0 ? data.shows[0].id : null);
+        if (targetShowId) {
+          selectShow(targetShowId);
         }
       } catch (err) {
         console.error('Failed to load catalog:', err);
@@ -869,6 +874,58 @@
     video.onended = () => {
       btnNextEp.click();
     };
+
+    // Auto-Update Engine for Frontend
+    async function checkCatalogVersion() {
+      try {
+        const res = await fetch('/api/catalog/version');
+        const data = await res.json();
+        if (lastCatalogVersion && lastCatalogVersion !== data.version) {
+          console.log('[Auto-Sync] 🔄 New catalog detected on server! Updating frontend...');
+          const currentShowId = activeShow ? activeShow.id : null;
+          await loadCatalog(currentShowId);
+        }
+        lastCatalogVersion = data.version;
+      } catch (e) {}
+    }
+
+    async function syncCatalogNow() {
+      const btn = document.getElementById('sync-btn');
+      if (btn) {
+        btn.textContent = '⏳ Scanning...';
+        btn.disabled = true;
+      }
+      try {
+        const res = await fetch('/api/catalog/refresh', { method: 'POST' });
+        const data = await res.json();
+        console.log('[Manual Sync] Result:', data);
+        lastCatalogVersion = data.version;
+        const currentShowId = activeShow ? activeShow.id : null;
+        await loadCatalog(currentShowId);
+        if (btn) btn.textContent = '✅ Synced!';
+        setTimeout(() => {
+          if (btn) {
+            btn.textContent = '🔄 Sync Catalog';
+            btn.disabled = false;
+          }
+        }, 2000);
+      } catch (e) {
+        if (btn) {
+          btn.textContent = '❌ Failed';
+          btn.disabled = false;
+        }
+      }
+    }
+
+    // Auto-check on tab visibility change (returning to tab)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        checkCatalogVersion();
+      }
+    });
+
+    // Auto-check every 30 seconds in background
+    setInterval(checkCatalogVersion, 30000);
 
     // Init
     loadCatalog();

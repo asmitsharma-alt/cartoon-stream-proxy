@@ -148,6 +148,56 @@
         }
       }
     },
+    "/api/catalog/version": {
+      "get": {
+        "summary": "Check Catalog Version",
+        "description": "Ultra-lightweight endpoint returning current catalog version timestamp and total count for frontend auto-update polling.",
+        "responses": {
+          "200": {
+            "description": "Current version info",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "version": { "type": "string" },
+                    "last_updated": { "type": "string" },
+                    "shows_count": { "type": "integer" },
+                    "total_titles": { "type": "integer" },
+                    "is_scanning": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/catalog/refresh": {
+      "post": {
+        "summary": "Trigger Catalog Scan",
+        "description": "Triggers an on-demand re-scan of all files in Zoho Stratus object storage and updates the in-memory catalog.",
+        "responses": {
+          "200": {
+            "description": "Scan trigger response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string" },
+                    "version": { "type": "string" },
+                    "shows_count": { "type": "integer" },
+                    "total_titles": { "type": "integer" },
+                    "scan_time_ms": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/health": {
       "get": {
         "summary": "Server Health",

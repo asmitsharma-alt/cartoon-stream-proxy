@@ -24,18 +24,81 @@ const app = express();
 // AppSail PORT rule: Always use process.env.X_ZOHO_CATALYST_LISTEN_PORT
 const PORT = process.env.X_ZOHO_CATALYST_LISTEN_PORT || process.env.PORT || 9000;
 const BUCKET_BASE_URL = 'https://stream-development.zohostratus.in';
+const { scanBucketCatalog } = require('./scanner');
 
-// Load In-Memory Catalog
+// In-Memory Dynamic Catalog Management
 let catalog = { shows: [] };
+let catalogVersion = Date.now().toString();
+let lastScanTime = Date.now();
+let isScanning = false;
+let lastCatalystReq = null;
+const SCAN_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes TTL
+
 const catalogPath = path.join(__dirname, 'catalog.json');
 if (fs.existsSync(catalogPath)) {
   try {
     catalog = JSON.parse(fs.readFileSync(catalogPath, 'utf8'));
-    console.log(`[Catalog] Loaded ${catalog.shows.length} shows from catalog.json`);
+    console.log(`[Catalog] Loaded ${catalog.shows.length} shows from catalog.json (Version: ${catalogVersion})`);
   } catch (err) {
     console.error('[Catalog] Error reading catalog.json:', err.message);
   }
 }
+
+// Background Scan Trigger Function
+async function triggerCatalogScan(req) {
+  if (isScanning) return { status: 'already_running', version: catalogVersion };
+  isScanning = true;
+  const startTime = Date.now();
+  console.log('[Catalog] 🚀 Starting Stratus catalog scan...');
+
+  try {
+    const freshCatalog = await scanBucketCatalog(req || lastCatalystReq);
+    if (freshCatalog && freshCatalog.shows && freshCatalog.shows.length > 0) {
+      catalog = freshCatalog;
+      catalogVersion = Date.now().toString();
+      lastScanTime = Date.now();
+      const totalTitles = catalog.shows.reduce((acc, s) => {
+        return acc + Object.keys(s.seasons).reduce((sAcc, sName) => sAcc + s.seasons[sName].length, 0);
+      }, 0);
+      console.log(`[Catalog] ✅ Scan complete in ${Date.now() - startTime}ms. Total: ${catalog.shows.length} shows, ${totalTitles} titles. Version: ${catalogVersion}`);
+
+      // Persist to disk
+      try {
+        fs.writeFileSync(catalogPath, JSON.stringify(catalog, null, 2));
+      } catch (fsErr) {
+        console.warn('[Catalog] Could not write catalog.json (ephemeral storage):', fsErr.message);
+      }
+
+      return {
+        status: 'success',
+        version: catalogVersion,
+        shows_count: catalog.shows.length,
+        total_titles: totalTitles,
+        scan_time_ms: Date.now() - startTime
+      };
+    }
+  } catch (err) {
+    console.error('[Catalog] ❌ Stratus scan error:', err.message);
+    return { status: 'error', message: err.message, version: catalogVersion };
+  } finally {
+    isScanning = false;
+  }
+}
+
+// Global Middlewares
+app.use((req, res, next) => {
+  if (req.headers && (req.headers['x-zc-project-id'] || req.headers['catalyst-org'])) {
+    lastCatalystReq = req;
+  }
+  next();
+});
+
+// Periodic background auto-check (every 60s checks if 15m TTL expired)
+setInterval(() => {
+  if (lastCatalystReq && !isScanning && (Date.now() - lastScanTime > SCAN_INTERVAL_MS)) {
+    triggerCatalogScan(lastCatalystReq).catch(() => {});
+  }
+}, 60000);
 
 // Global Middlewares
 app.use(cors({
@@ -108,6 +171,21 @@ app.get('/api/diag', (req, res) => {
 // 2. CATALOG & TRACK INTROSPECTION API
 // ==========================================
 app.get('/api/catalog', (req, res) => {
+  // Stale-While-Revalidate: Trigger background refresh if TTL expired
+  if (lastCatalystReq && !isScanning && (Date.now() - lastScanTime > SCAN_INTERVAL_MS)) {
+    triggerCatalogScan(lastCatalystReq).catch(() => {});
+  }
+
+  const etag = `W/"cat-${catalogVersion}"`;
+  res.setHeader('ETag', etag);
+  res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+  res.setHeader('X-Catalog-Version', catalogVersion);
+  res.setHeader('X-Catalog-Updated', new Date(lastScanTime).toISOString());
+
+  if (req.headers['if-none-match'] === etag) {
+    return res.status(304).end();
+  }
+
   const summary = catalog.shows.map(show => ({
     id: show.id,
     title: show.title,
@@ -118,8 +196,43 @@ app.get('/api/catalog', (req, res) => {
       episode_count: show.seasons[sName].length
     }))
   }));
-  res.json({ shows: summary });
+
+  res.json({
+    version: catalogVersion,
+    last_updated: new Date(lastScanTime).toISOString(),
+    shows: summary
+  });
 });
+
+app.get('/api/catalog/version', (req, res) => {
+  const totalTitles = catalog.shows.reduce((acc, s) => {
+    return acc + Object.keys(s.seasons).reduce((sAcc, sName) => sAcc + s.seasons[sName].length, 0);
+  }, 0);
+
+  res.setHeader('Cache-Control', 'no-cache');
+  res.json({
+    version: catalogVersion,
+    last_updated: new Date(lastScanTime).toISOString(),
+    shows_count: catalog.shows.length,
+    total_titles: totalTitles,
+    is_scanning: isScanning
+  });
+});
+
+const handleRefreshCatalog = async (req, res) => {
+  if (isScanning) {
+    return res.json({
+      status: 'in_progress',
+      message: 'Catalog scan already in progress',
+      version: catalogVersion
+    });
+  }
+  const result = await triggerCatalogScan(req);
+  res.json(result);
+};
+
+app.get('/api/catalog/refresh', handleRefreshCatalog);
+app.post('/api/catalog/refresh', handleRefreshCatalog);
 
 app.get('/api/show/:id', (req, res) => {
   const show = catalog.shows.find(s => s.id === req.params.id);
