@@ -272,45 +272,108 @@ app.get('/api/stream', (req, res) => {
     return;
   }
 
-  // Option B: Direct Stratus Byte-Range Proxy (for native MP4 playback)
+  // Option B: Direct Stratus Byte-Range Proxy with Safe Chunk Slicing
   const rangeHeader = req.headers.range;
-  const requestHeaders = {
-    'Accept-Encoding': 'identity'
-  };
-  if (rangeHeader) {
-    requestHeaders['Range'] = rangeHeader;
-  }
 
-  https.get(targetUrl, { headers: requestHeaders }, (stratusRes) => {
-    const isRangeRequest = !!rangeHeader;
-    const statusCode = (isRangeRequest && stratusRes.statusCode === 200) ? 206 : stratusRes.statusCode;
-    res.status(statusCode);
+  https.get(targetUrl, { headers: { 'Accept-Encoding': 'identity' } }, (stratusRes) => {
+    if (stratusRes.statusCode !== 200 && stratusRes.statusCode !== 206) {
+      res.status(stratusRes.statusCode);
+      return stratusRes.pipe(res);
+    }
 
-    const forwardHeaders = [
-      'content-type',
-      'content-length',
-      'content-range',
-      'accept-ranges',
-      'last-modified',
-      'etag'
-    ];
+    const totalLength = parseInt(stratusRes.headers['content-length'] || '0', 10);
+    const contentType = stratusRes.headers['content-type'] || 'video/mp4';
 
-    forwardHeaders.forEach(h => {
-      if (stratusRes.headers[h]) {
-        res.setHeader(h, stratusRes.headers[h]);
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Range, Accept-Ranges, Content-Length, Content-Type');
+    if (stratusRes.headers['etag']) res.setHeader('ETag', stratusRes.headers['etag']);
+    if (stratusRes.headers['last-modified']) res.setHeader('Last-Modified', stratusRes.headers['last-modified']);
+
+    if (!rangeHeader) {
+      // Direct GET without range
+      // If totalLength <= 2GB, we can safely set Content-Length.
+      // If totalLength > 2GB, NEVER set Content-Length to prevent ZGS 32-bit signed integer overflow!
+      if (totalLength > 0 && totalLength <= 2147483647) {
+        res.setHeader('Content-Length', totalLength);
+      }
+      res.status(200);
+      return stratusRes.pipe(res);
+    }
+
+    // Parse Range header: "bytes=start-end"
+    let start = 0;
+    let end = totalLength > 0 ? totalLength - 1 : 0;
+    const parts = rangeHeader.replace(/bytes=/, '').split('-');
+    if (parts[0]) start = parseInt(parts[0], 10);
+    if (parts[1]) end = parseInt(parts[1], 10);
+
+    // If open-ended range (e.g. bytes=0-), cap chunk size to 25MB to prevent ZGS 32-bit integer overflow
+    // and deliver ultra-responsive, instant 206 streaming for video players
+    const MAX_CHUNK_SIZE = 25 * 1024 * 1024; // 25 MB
+    if (!parts[1] || (end - start + 1) > MAX_CHUNK_SIZE) {
+      end = Math.min(start + MAX_CHUNK_SIZE - 1, totalLength > 0 ? totalLength - 1 : start + MAX_CHUNK_SIZE - 1);
+    }
+
+    const chunkSize = end - start + 1;
+    res.status(206);
+    if (totalLength > 0) {
+      res.setHeader('Content-Range', `bytes ${start}-${end}/${totalLength}`);
+    }
+    res.setHeader('Content-Length', chunkSize);
+
+    let bytesStreamed = 0;
+    let bytesSkipped = 0;
+
+    stratusRes.on('data', (chunk) => {
+      // 1. Skip bytes before start
+      if (bytesSkipped < start) {
+        const remainingToSkip = start - bytesSkipped;
+        if (chunk.length <= remainingToSkip) {
+          bytesSkipped += chunk.length;
+          return;
+        } else {
+          chunk = chunk.slice(remainingToSkip);
+          bytesSkipped = start;
+        }
+      }
+
+      // 2. Stream up to chunkSize
+      const remainingToSend = chunkSize - bytesStreamed;
+      if (remainingToSend <= 0) {
+        stratusRes.destroy();
+        return;
+      }
+
+      if (chunk.length > remainingToSend) {
+        const slice = chunk.slice(0, remainingToSend);
+        res.write(slice);
+        bytesStreamed += slice.length;
+        res.end();
+        stratusRes.destroy();
+      } else {
+        res.write(chunk);
+        bytesStreamed += chunk.length;
+        if (bytesStreamed >= chunkSize) {
+          res.end();
+          stratusRes.destroy();
+        }
       }
     });
 
-    const totalLength = stratusRes.headers['content-length'];
-    if (isRangeRequest && stratusRes.statusCode === 200 && totalLength) {
-      res.setHeader('Content-Range', `bytes 0-${parseInt(totalLength, 10) - 1}/${totalLength}`);
-    }
+    stratusRes.on('end', () => {
+      if (!res.writableEnded) res.end();
+    });
 
-    if (!res.getHeader('accept-ranges')) {
-      res.setHeader('Accept-Ranges', 'bytes');
-    }
+    stratusRes.on('error', (err) => {
+      console.error(`[Stratus Stream Error] for key ${key}:`, err.message);
+      if (!res.headersSent) res.status(502).end();
+    });
 
-    stratusRes.pipe(res);
+    req.on('close', () => {
+      stratusRes.destroy();
+    });
   }).on('error', (err) => {
     console.error(`[Stream Error] for key ${key}:`, err.message);
     if (!res.headersSent) {
