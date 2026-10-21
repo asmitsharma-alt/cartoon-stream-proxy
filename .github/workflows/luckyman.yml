@@ -1,0 +1,68 @@
+name: Luckyman Cloud Migration Worker
+
+on:
+  workflow_dispatch:
+    inputs:
+      part:
+        description: 'Luckyman Part to Migrate'
+        required: true
+        default: 'both'
+        type: choice
+        options:
+          - both
+          - '1'
+          - '2'
+
+permissions:
+  contents: write
+
+jobs:
+  migrate-luckyman:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        part: ${{ github.event.inputs.part == 'both' && fromJSON('["1", "2"]') || fromJSON(format('["{0}"]', github.event.inputs.part)) }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Maximize Disk Space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
+          df -h
+
+      - name: Install Node Dependencies
+        run: |
+          npm install --production --force
+
+      - name: Resolve Fresh R2 Links
+        run: |
+          python resolve_luckyman.py
+
+      - name: Run Cloud Pack Migration
+        env:
+          ZOHO_CREDENTIALS: ${{ secrets.ZOHO_CREDENTIALS }}
+          MANIFEST_FILE: zoho_manifest_luckyman_part_${{ matrix.part }}.json
+        run: |
+          node migrate_luckyman.js --part "${{ matrix.part }}"
+
+      - name: Commit & Push Updated Manifest
+        continue-on-error: true
+        run: |
+          git config user.name "Cloud Migration Bot"
+          git config user.email "bot@users.noreply.github.com"
+          git pull --rebase || true
+          git add zoho_manifest*.json luckyman_packs.json
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Update zoho_manifest_luckyman_part_${{ matrix.part }} [skip ci]" && git push) || true

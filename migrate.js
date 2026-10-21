@@ -290,6 +290,9 @@ function computeOrganizedKey(item, options = {}) {
     }
     return `Pokemon/${getPokemonSeason(item)}/${safe}`;
   }
+  if (lower.includes('luckyman')) {
+    return `Luckyman/Season 01/${safe}`;
+  }
   if (lower.includes('shinchan')) {
     return `Shinchan/${item.season || 'Season 01'}/${safe}`;
   }
