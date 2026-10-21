@@ -312,6 +312,136 @@ function computeOrganizedKey(item, options = {}) {
 // 4. MIGRATION TRANSFER CORE
 // ==========================================
 
+
+async function uploadMultipartStream(sourceStream, key, token, expectedSizeBytes, rawFilename) {
+  // 1. Initiate Multipart Upload
+  const initRes = await new Promise((resolve, reject) => {
+    const req = https.request(`${STRATUS_BASE_URL}/${encodeURI(key)}?multipart`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': 'Zoho-oauthtoken ' + token,
+        'Content-Type': rawFilename.toLowerCase().endsWith('.mkv') ? 'video/x-matroska' : 'video/mp4',
+        'overwrite': 'true'
+      }
+    }, (res) => {
+      let data = '';
+      res.on('data', c => data += c);
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(data);
+          if (json.upload_id) resolve(json);
+          else reject(new Error(`Failed to initiate multipart: ${res.statusCode} ${data}`));
+        } catch (e) {
+          reject(new Error(`Invalid initiate response: ${res.statusCode} ${data}`));
+        }
+      });
+    });
+    req.on('error', reject);
+    req.end();
+  });
+
+  const uploadId = initRes.upload_id;
+  console.log(`📦 Initiated Stratus Multipart Upload (ID: ${uploadId})`);
+
+  const PART_SIZE = 40 * 1024 * 1024; // 40 MB chunks
+  let partNumber = 1;
+  let currentChunks = [];
+  let currentBytes = 0;
+  let totalUploadedBytes = 0;
+
+  async function uploadCurrentPart(buffer, partNum) {
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const freshToken = await getZohoToken();
+        await new Promise((resolve, reject) => {
+          const req = https.request(`${STRATUS_BASE_URL}/${encodeURI(key)}?uploadId=${uploadId}&partNumber=${partNum}`, {
+            method: 'PUT',
+            headers: {
+              'Authorization': 'Zoho-oauthtoken ' + freshToken,
+              'Content-Length': buffer.length
+            }
+          }, (res) => {
+            let data = '';
+            res.on('data', c => data += c);
+            res.on('end', () => {
+              if (res.statusCode >= 200 && res.statusCode < 300) {
+                resolve();
+              } else {
+                reject(new Error(`Part ${partNum} failed (${res.statusCode}): ${data}`));
+              }
+            });
+          });
+          req.on('error', reject);
+          req.write(buffer);
+          req.end();
+        });
+        totalUploadedBytes += buffer.length;
+        const pct = expectedSizeBytes ? ((totalUploadedBytes / expectedSizeBytes) * 100).toFixed(1) : '?';
+        console.log(`  [✓] Part ${partNum} Uploaded: ${formatBytes(buffer.length)} | Total: ${formatBytes(totalUploadedBytes)} (${pct}%)`);
+        return;
+      } catch (err) {
+        if (attempt === 3) throw err;
+        console.warn(`  [!] Part ${partNum} attempt ${attempt}/3 failed: ${err.message}. Retrying in 2s...`);
+        await new Promise(r => setTimeout(r, 2000));
+      }
+    }
+  }
+
+  // Stream consuming loop with backpressure
+  for await (const chunk of sourceStream) {
+    currentChunks.push(chunk);
+    currentBytes += chunk.length;
+
+    if (currentBytes >= PART_SIZE) {
+      const partBuffer = Buffer.concat(currentChunks);
+      currentChunks = [];
+      currentBytes = 0;
+      await uploadCurrentPart(partBuffer, partNumber++);
+    }
+  }
+
+  // Upload final remaining chunk
+  if (currentChunks.length > 0) {
+    const finalBuffer = Buffer.concat(currentChunks);
+    currentChunks = [];
+    currentBytes = 0;
+    await uploadCurrentPart(finalBuffer, partNumber++);
+  }
+
+  // Complete Multipart Upload
+  console.log(`🏁 Completing Multipart Upload for ${key}...`);
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const freshToken = await getZohoToken();
+      await new Promise((resolve, reject) => {
+        const req = https.request(`${STRATUS_BASE_URL}/${encodeURI(key)}?completeMultipart&uploadId=${uploadId}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': 'Zoho-oauthtoken ' + freshToken
+          }
+        }, (res) => {
+          let data = '';
+          res.on('data', c => data += c);
+          res.on('end', () => {
+            if (res.statusCode >= 200 && res.statusCode < 300) {
+              resolve();
+            } else {
+              reject(new Error(`Complete multipart failed (${res.statusCode}): ${data}`));
+            }
+          });
+        });
+        req.on('error', reject);
+        req.end();
+      });
+      console.log(`✅ Multipart Upload Completed Successfully!`);
+      return;
+    } catch (err) {
+      if (attempt === 3) throw err;
+      await new Promise(r => setTimeout(r, 2000));
+    }
+  }
+}
+
 async function migrateFile(item, options = {}) {
   const fileId = item.file_id;
   const rawFilename = item.filename || item.title || `${fileId}.mp4`;
@@ -380,7 +510,43 @@ async function migrateFile(item, options = {}) {
     }
   }
 
+  async function handleMultipartTransfer(sourceStream, key, token, resolve, reject) {
+    try {
+      const expectedBytes = (item.size_mb || 0) * 1024 * 1024;
+      await uploadMultipartStream(sourceStream, key, token, expectedBytes, rawFilename);
+
+      const publicUrl = `${STRATUS_BASE_URL}/${encodeURI(key)}`;
+      process.stdout.write(`🔍 Verifying HTTP 206 Range Playback... `);
+      const rangeTest = await verifyRangePlayback(publicUrl);
+      if (rangeTest.is206) {
+        console.log(`[PASS - Native Seeking Ready]`);
+      } else {
+        console.log(`[Status: ${rangeTest.statusCode}]`);
+      }
+
+      manifest[fileId] = {
+        title: item.title || rawFilename,
+        filename: rawFilename,
+        key,
+        url: publicUrl,
+        multipart: true,
+        transferred_at: new Date().toISOString()
+      };
+      saveManifest();
+
+      console.log(`\n🎉 Permanent Zoho Stratus URL:`);
+      console.log(`👉 ${publicUrl}\n`);
+      resolve(manifest[fileId]);
+    } catch (err) {
+      reject(err);
+    }
+  }
+
   function handleUploadStream(sourceStream, key, token, convertAudio, resolve, reject) {
+    if (!convertAudio && (isMovie || (item.size_mb && item.size_mb > 500))) {
+      handleMultipartTransfer(sourceStream, key, token, resolve, reject);
+      return;
+    }
     const uploadUrl = `${STRATUS_BASE_URL}/${encodeURI(key)}`;
     const uploadReq = https.request(uploadUrl, {
       method: 'PUT',
