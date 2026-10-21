@@ -9,6 +9,18 @@ on:
         default: 'movies-turbo'
         type: choice
         options:
+          - pokemon-turbo
+          - pokemon
+          - pokemon-batch-1
+          - pokemon-batch-2
+          - pokemon-batch-3
+          - pokemon-batch-4
+          - pokemon-batch-5
+          - pokemon-batch-6
+          - pokemon-batch-7
+          - pokemon-batch-8
+          - pokemon-batch-9
+          - pokemon-batch-10
           - movies-turbo
           - movies-matrix
           - doraemon-turbo
@@ -82,6 +94,55 @@ jobs:
         env:
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
           ZOHO_CREDENTIALS: ${{ secrets.ZOHO_CREDENTIALS }}
+        run: |
+          node migrate.js --target "${{ matrix.batch }}"
+
+      - name: Commit & Push Updated Manifest
+        continue-on-error: true
+        run: |
+          git config user.name "Cloud Migration Bot"
+          git config user.email "bot@users.noreply.github.com"
+          git pull --rebase || true
+          git add zoho_manifest*.json
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Update zoho_manifest_${{ matrix.batch }} [skip ci]" && git push) || true
+
+  migrate-pokemon-turbo:
+    if: github.event.inputs.target == 'pokemon-turbo'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        batch:
+          - pokemon-batch-1
+          - pokemon-batch-2
+          - pokemon-batch-3
+          - pokemon-batch-4
+          - pokemon-batch-5
+          - pokemon-batch-6
+          - pokemon-batch-7
+          - pokemon-batch-8
+          - pokemon-batch-9
+          - pokemon-batch-10
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Node Dependencies
+        run: |
+          npm install --production --force
+
+      - name: Run Cloud Migration
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          ZOHO_CREDENTIALS: ${{ secrets.ZOHO_CREDENTIALS }}
+          CONCURRENCY: 8
+          MANIFEST_FILE: zoho_manifest_${{ matrix.batch }}.json
         run: |
           node migrate.js --target "${{ matrix.batch }}"
 
@@ -199,7 +260,7 @@ jobs:
           git diff --quiet && git diff --staged --quiet || (git commit -m "Update zoho_manifest_${{ matrix.show }} [skip ci]" && git push) || true
 
   migrate-single:
-    if: github.event.inputs.target != 'matrix-all' && github.event.inputs.target != 'movies-turbo' && github.event.inputs.target != 'movies-matrix' && github.event.inputs.target != 'doraemon-turbo'
+    if: github.event.inputs.target != 'matrix-all' && github.event.inputs.target != 'movies-turbo' && github.event.inputs.target != 'movies-matrix' && github.event.inputs.target != 'doraemon-turbo' && github.event.inputs.target != 'pokemon-turbo'
     runs-on: ubuntu-latest
     timeout-minutes: 360
     steps:

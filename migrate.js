@@ -24,7 +24,7 @@ require('dotenv').config();
 // Configuration
 const BUCKET_NAME = 'stream';
 const STRATUS_BASE_URL = `https://${BUCKET_NAME}-development.zohostratus.in`;
-const MANIFEST_FILE = path.join(__dirname, 'zoho_manifest.json');
+const MANIFEST_FILE = process.env.MANIFEST_FILE ? path.resolve(process.env.MANIFEST_FILE) : path.join(__dirname, 'zoho_manifest.json');
 
 // Locate FFmpeg binary
 let ffmpegPath = 'ffmpeg';
@@ -264,14 +264,31 @@ function getChhotaBheemFolder(item) {
   return 'Classic Episodes';
 }
 
+function getPokemonSeason(item) {
+  if (item.relative_path) {
+    const match = item.relative_path.match(/Season\s*(\d+)/i);
+    if (match) return `Season ${match[1].padStart(2, '0')}`;
+  }
+  const str = (item.filename || '') + ' ' + (item.title || '');
+  const match2 = str.match(/S(\d+)/i);
+  if (match2) return `Season ${match2[1].padStart(2, '0')}`;
+  return 'Season 01';
+}
+
 function computeOrganizedKey(item, options = {}) {
   const raw = item.filename || item.title || `${item.file_id}.mp4`;
-  const safe = raw.replace(/[^a-zA-Z0-9._-]/g, '_');
+  let safe = raw.replace(/[^a-zA-Z0-9._-]/g, '_');
   const lower = raw.toLowerCase();
 
   if (options.targetKey) return options.targetKey;
   if (options.prefix === 'movies' || lower.includes('doraemon_movie') || lower.includes('the birth of doraemon') || lower.includes('stand by me')) {
     return `Doraemon/Movies/${safe}`;
+  }
+  if (lower.includes('pokemon') || (item.relative_path && item.relative_path.toLowerCase().includes('pokemon'))) {
+    if (item.relative_path && item.relative_path.includes(' CN ') && safe.includes('XD')) {
+      safe = safe.replace('XD', 'CN');
+    }
+    return `Pokemon/${getPokemonSeason(item)}/${safe}`;
   }
   if (lower.includes('shinchan')) {
     return `Shinchan/${item.season || 'Season 01'}/${safe}`;
@@ -358,7 +375,7 @@ async function migrateFile(item, options = {}) {
       method: 'PUT',
       headers: {
         'Authorization': 'Zoho-oauthtoken ' + token,
-        'Content-Type': 'video/mp4',
+        'Content-Type': rawFilename.toLowerCase().endsWith('.mkv') ? 'video/x-matroska' : 'video/mp4',
         'overwrite': 'true'
       }
     }, async (uploadRes) => {
@@ -858,6 +875,63 @@ async function run() {
     return;
   }
 
+  if (target.startsWith('pokemon-batch-')) {
+    const batchNum = parseInt(target.replace('pokemon-batch-', ''), 10);
+    const items = JSON.parse(fs.readFileSync(path.join(__dirname, 'Pokemon_Google_Drive_Links.json'), 'utf8'));
+    const totalBatches = 10;
+    const batchSize = Math.ceil(items.length / totalBatches);
+    const startIdx = (batchNum - 1) * batchSize;
+    const endIdx = Math.min(startIdx + batchSize, items.length);
+    const batchItems = items.slice(startIdx, endIdx);
+    const concurrency = parseInt(process.env.CONCURRENCY || '8', 10);
+
+    console.log(`⚡ Pokemon Batch ${batchNum}/${totalBatches} (${startIdx + 1} to ${endIdx} of ${items.length} episodes). Concurrency: ${concurrency}`);
+    let currentIndex = 0;
+    async function worker(workerId) {
+      while (currentIndex < batchItems.length) {
+        const i = currentIndex++;
+        const item = batchItems[i];
+        console.log(`\n[Worker ${workerId}][${startIdx + i + 1}/${items.length}] Processing: ${item.filename || item.title}`);
+        try {
+          await migrateFile(item, { prefix: 'episodes' });
+        } catch (err) {
+          console.error(`❌ [Worker ${workerId}] Error on item ${startIdx + i + 1}:`, err.message);
+        }
+      }
+    }
+
+    const workers = Array.from({ length: concurrency }, (_, id) => worker(id + 1));
+    await Promise.all(workers);
+    return;
+  }
+
+  if (target.startsWith('pokemon-s') || target.startsWith('pokemon-season-')) {
+    const rawNum = target.replace(/^pokemon-(s|season-)/, '');
+    const sStr = `Season ${rawNum.padStart(2, '0')}`;
+    const items = JSON.parse(fs.readFileSync(path.join(__dirname, 'Pokemon_Google_Drive_Links.json'), 'utf8'));
+    const seasonItems = items.filter(it => getPokemonSeason(it) === sStr);
+    const concurrency = parseInt(process.env.CONCURRENCY || '8', 10);
+    console.log(`📺 Pokemon ${sStr} (${seasonItems.length} episodes). Concurrency: ${concurrency}`);
+
+    let currentIndex = 0;
+    async function worker(workerId) {
+      while (currentIndex < seasonItems.length) {
+        const i = currentIndex++;
+        const item = seasonItems[i];
+        console.log(`\n[Worker ${workerId}][${i + 1}/${seasonItems.length}] Processing: ${item.filename || item.title}`);
+        try {
+          await migrateFile(item, { prefix: 'episodes' });
+        } catch (err) {
+          console.error(`❌ [Worker ${workerId}] Error on item ${i + 1}:`, err.message);
+        }
+      }
+    }
+
+    const workers = Array.from({ length: concurrency }, (_, id) => worker(id + 1));
+    await Promise.all(workers);
+    return;
+  }
+
   if (target.startsWith('doraemon-batch-')) {
     const batchNum = parseInt(target.replace('doraemon-batch-', ''), 10);
     const items = JSON.parse(fs.readFileSync(path.join(__dirname, 'Doraemon_Google_Drive_Links.json'), 'utf8'));
@@ -892,7 +966,8 @@ async function run() {
     'doraemon': 'Doraemon_Google_Drive_Links.json',
     'shinchan': 'Shinchan_Google_Drive_Links.json',
     'oggy': 'Oggy_Google_Drive_Links.json',
-    'chhota-bheem': 'Chhota_Bheem_Google_Drive_Links.json'
+    'chhota-bheem': 'Chhota_Bheem_Google_Drive_Links.json',
+    'pokemon': 'Pokemon_Google_Drive_Links.json'
   };
 
   const catalogFile = catalogMap[target.toLowerCase()];
