@@ -131,7 +131,7 @@ app.get('/api/tracks', (req, res) => {
   const args = [
     '-v', 'error',
     '-headers', 'Accept-Encoding: identity\r\n',
-    '-show_entries', 'stream=index,codec_name,codec_type:stream_tags=language,title',
+    '-show_entries', 'stream=index,codec_name,codec_type:stream_tags=language,title:format=duration',
     '-of', 'json',
     targetUrl
   ];
@@ -146,13 +146,14 @@ app.get('/api/tracks', (req, res) => {
   proc.on('close', (code) => {
     if (code !== 0) {
       console.warn(`[FFprobe] exit code ${code} for ${key}`);
-      const fallback = { audioTracks: [{ index: 0, streamIndex: 1, language: 'hin', label: '🔊 Hindi / Default' }] };
+      const fallback = { duration: 0, audioTracks: [{ index: 0, streamIndex: 1, language: 'hin', label: '🔊 Hindi / Default' }] };
       return res.json(fallback);
     }
 
     try {
       const data = JSON.parse(output);
       const audioStreams = (data.streams || []).filter(s => s.codec_type === 'audio');
+      const durationSec = Math.floor(parseFloat((data.format && data.format.duration) || '0'));
 
       const langMap = {
         'hin': 'Hindi',
@@ -177,19 +178,20 @@ app.get('/api/tracks', (req, res) => {
       });
 
       const result = {
+        duration: durationSec,
         audioTracks: tracks.length > 0 ? tracks : [{ index: 0, streamIndex: 1, language: 'und', label: '🔊 Default Audio' }]
       };
       trackCache.set(key, result);
       res.json(result);
     } catch (e) {
       console.error('[FFprobe Parse Error]:', e.message);
-      res.json({ audioTracks: [{ index: 0, streamIndex: 1, language: 'und', label: '🔊 Default Audio' }] });
+      res.json({ duration: 0, audioTracks: [{ index: 0, streamIndex: 1, language: 'und', label: '🔊 Default Audio' }] });
     }
   });
 
   proc.on('error', (err) => {
     console.error('[FFprobe Spawn Error]:', err.message);
-    res.json({ audioTracks: [{ index: 0, streamIndex: 1, language: 'und', label: '🔊 Default Audio' }] });
+    res.json({ duration: 0, audioTracks: [{ index: 0, streamIndex: 1, language: 'und', label: '🔊 Default Audio' }] });
   });
 });
 
@@ -205,8 +207,9 @@ app.get('/api/stream', (req, res) => {
   const targetUrl = `${BUCKET_BASE_URL}/${encodeURI(key)}`;
   const audio = req.query.audio;
   const startSec = parseFloat(req.query.t || '0');
+  const isMkv = key.toLowerCase().endsWith('.mkv');
   const hasAudioOverride = audio !== undefined && audio !== '' && audio !== '0' && audio !== 'default';
-  const useFfmpeg = hasAudioOverride || (startSec > 0 && hasAudioOverride);
+  const useFfmpeg = hasAudioOverride || (isMkv && startSec > 0) || (startSec > 0 && req.query.audio !== undefined);
 
   // Option A: Dynamic FFmpeg Remux (Instant Multi-Audio Switch / MKV to MP4)
   if (useFfmpeg && fs.existsSync(FFMPEG_BIN)) {

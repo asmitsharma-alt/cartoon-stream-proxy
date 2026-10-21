@@ -67,10 +67,29 @@ async def run_test():
         # 5. Test 'Skip Intro (+90s)' button
         print("4. Testing Skip Intro (+90s)...")
         await page.click("#btn-skip-intro")
-        await page.wait_for_timeout(1000)
-        time_after_skip = await page.eval_on_selector("#video-element", "v => v.currentTime")
+        await page.wait_for_timeout(2000)
+        time_after_skip = await page.evaluate("() => getEffectiveCurrentTime()")
         print(f"   Current Time After Skip: {time_after_skip:.2f}s")
         assert time_after_skip >= 80, f"Expected >= 80s, got {time_after_skip}s"
+
+        # 5a. TEST TIMESTAMP JUMPING INPUT (e.g. 05:00 = 300s)
+        print("4a. Testing Jump to Timestamp Input ('05:00')...")
+        await page.fill("#jump-time-input", "05:00")
+        await page.click("#btn-jump")
+        await page.wait_for_timeout(2000)
+        time_after_jump = await page.evaluate("() => getEffectiveCurrentTime()")
+        print(f"   Time After Jump to 05:00: {time_after_jump:.2f}s")
+        assert 290 <= time_after_jump <= 320, f"Expected ~300s, got {time_after_jump}s"
+        print("   ✅ Jump to Specific Timestamp ('05:00' -> 300s) VERIFIED!")
+
+        # 5b. TEST QUICK +30s SKIP BUTTON
+        print("4b. Testing +30s Skip Button...")
+        await page.click("#btn-fwd-30")
+        await page.wait_for_timeout(2000)
+        time_after_fwd = await page.evaluate("() => getEffectiveCurrentTime()")
+        print(f"   Time After +30s Skip: {time_after_fwd:.2f}s")
+        assert time_after_fwd >= 320, f"Expected >= 320s, got {time_after_fwd}s"
+        print("   ✅ Quick +30s Skip VERIFIED!")
 
         # 6. TEST DYNAMIC AUDIO LANGUAGE SWITCHING
         print("5. Testing Dynamic Audio Language Switching...")

@@ -240,6 +240,107 @@
       font-size: 0.75rem;
       color: var(--text-muted);
     }
+    /* Custom Scrubber / Timeline */
+    .timeline-wrapper {
+      padding: 0.75rem 1.5rem 0.25rem 1.5rem;
+      background: #111;
+      border-top: 1px solid var(--border);
+    }
+    .timeline-track-container {
+      position: relative;
+      width: 100%;
+      height: 18px;
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+    }
+    .timeline-track {
+      position: relative;
+      width: 100%;
+      height: 5px;
+      background: #333333;
+      border-radius: 4px;
+      transition: height 0.15s ease;
+    }
+    .timeline-track-container:hover .timeline-track {
+      height: 8px;
+    }
+    .timeline-fill {
+      position: absolute;
+      left: 0;
+      top: 0;
+      height: 100%;
+      width: 0%;
+      background: var(--primary);
+      border-radius: 4px;
+    }
+    .timeline-thumb {
+      position: absolute;
+      top: 50%;
+      right: -6px;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #ffffff;
+      box-shadow: 0 0 6px rgba(229, 9, 20, 0.9);
+      transform: translateY(-50%) scale(0);
+      transition: transform 0.15s ease;
+      pointer-events: none;
+    }
+    .timeline-track-container:hover .timeline-thumb {
+      transform: translateY(-50%) scale(1);
+    }
+    .timeline-hover-time {
+      position: absolute;
+      top: -28px;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.95);
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      border: 1px solid #444;
+      pointer-events: none;
+      display: none;
+      white-space: nowrap;
+      z-index: 10;
+    }
+    .jump-control-group {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      background: #1f1f1f;
+      padding: 0.25rem 0.5rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+    .jump-input {
+      background: transparent;
+      border: none;
+      color: #fff;
+      width: 75px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      outline: none;
+      text-align: center;
+      font-family: inherit;
+    }
+    .jump-input::placeholder {
+      color: #666;
+      font-weight: normal;
+    }
+    .time-pill {
+      font-family: monospace;
+      font-size: 0.85rem;
+      background: #222;
+      padding: 0.4rem 0.65rem;
+      border-radius: 6px;
+      border: 1px solid #333;
+      color: #eee;
+      white-space: nowrap;
+    }
   </style>
 </head>
 <body>
@@ -259,23 +360,50 @@
       <div class="video-wrapper">
         <video id="video-element" controls preload="metadata" playsinline></video>
       </div>
+
+      <!-- INTERACTIVE TIMELINE SCRUBBER -->
+      <div class="timeline-wrapper">
+        <div class="timeline-track-container" id="timeline-container">
+          <div class="timeline-track" id="timeline-track">
+            <div class="timeline-fill" id="timeline-fill">
+              <div class="timeline-thumb" id="timeline-thumb"></div>
+            </div>
+          </div>
+          <div class="timeline-hover-time" id="timeline-hover-time">00:00</div>
+        </div>
+      </div>
+
+      <!-- CONTROLS BAR -->
       <div class="player-controls-bar">
         <div class="now-playing">
           <h2 id="player-title">Select an Episode to Play</h2>
           <p id="player-subtitle">Zoho Catalyst Stratus • Instant Range Seeking • Multi-Audio Ready</p>
         </div>
         <div class="control-actions">
+          <!-- Time Display -->
+          <div class="time-pill" id="time-display">00:00 / 00:00</div>
+
           <!-- Language Selector -->
-          <label style="font-size: 0.8rem; color: #aaa; font-weight: 600;">Audio Language:</label>
+          <label style="font-size: 0.8rem; color: #aaa; font-weight: 600;">Audio:</label>
           <select id="audio-select">
             <option value="0">Detecting audio...</option>
           </select>
 
           <!-- Quick Navigation Actions -->
-          <button class="btn" id="btn-back-10">⏮️ -10s</button>
-          <button class="btn" id="btn-fwd-10">+10s ⏭️</button>
-          <button class="btn" id="btn-skip-intro">⏭️ Skip Intro (+90s)</button>
-          <button class="btn btn-primary" id="btn-next-ep">Next Episode ⏭️</button>
+          <button class="btn" id="btn-back-30" title="Rewind 30 seconds">⏪ -30s</button>
+          <button class="btn" id="btn-back-10" title="Rewind 10 seconds">⏪ -10s</button>
+          <button class="btn" id="btn-fwd-10" title="Forward 10 seconds">+10s ⏩</button>
+          <button class="btn" id="btn-fwd-30" title="Forward 30 seconds">+30s ⏩</button>
+          <button class="btn" id="btn-skip-intro" title="Skip Intro (+90s)">⏭️ Skip Intro</button>
+
+          <!-- Specific Timestamp Jump -->
+          <div class="jump-control-group" title="Type timestamp (e.g. 05:20, 12:00, or 90) and click Jump">
+            <span style="font-size: 0.8rem; color: #aaa;">⏱️</span>
+            <input type="text" id="jump-time-input" class="jump-input" placeholder="MM:SS">
+            <button class="btn btn-primary" id="btn-jump" style="padding: 0.35rem 0.65rem; font-size: 0.8rem;">Jump</button>
+          </div>
+
+          <button class="btn btn-primary" id="btn-next-ep">Next ⏭️</button>
         </div>
       </div>
     </section>
@@ -304,6 +432,9 @@
     let activeEpisode = null;
     let currentEpisodesList = [];
     let currentAudioIndex = 0;
+    let currentStreamOffset = 0;
+    let totalDuration = 0;
+    let isDraggingTimeline = false;
 
     const video = document.getElementById('video-element');
     const playerTitle = document.getElementById('player-title');
@@ -313,10 +444,88 @@
     const searchInput = document.getElementById('search-input');
     const episodesGrid = document.getElementById('episodes-grid');
     const audioSelect = document.getElementById('audio-select');
+    const timeDisplay = document.getElementById('time-display');
+    const timelineContainer = document.getElementById('timeline-container');
+    const timelineTrack = document.getElementById('timeline-track');
+    const timelineFill = document.getElementById('timeline-fill');
+    const timelineHoverTime = document.getElementById('timeline-hover-time');
+
+    const btnBack30 = document.getElementById('btn-back-30');
     const btnBack10 = document.getElementById('btn-back-10');
     const btnFwd10 = document.getElementById('btn-fwd-10');
+    const btnFwd30 = document.getElementById('btn-fwd-30');
     const btnSkipIntro = document.getElementById('btn-skip-intro');
     const btnNextEp = document.getElementById('btn-next-ep');
+    const jumpTimeInput = document.getElementById('jump-time-input');
+    const btnJump = document.getElementById('btn-jump');
+
+    // 0. Time Format & Parsing Helpers
+    function formatTime(totalSeconds) {
+      if (isNaN(totalSeconds) || totalSeconds < 0) return '00:00';
+      const sec = Math.floor(totalSeconds % 60);
+      const min = Math.floor((totalSeconds / 60) % 60);
+      const hr = Math.floor(totalSeconds / 3600);
+
+      const pad = (n) => String(n).padStart(2, '0');
+      if (hr > 0) {
+        return `${hr}:${pad(min)}:${pad(sec)}`;
+      }
+      return `${pad(min)}:${pad(sec)}`;
+    }
+
+    function parseTime(inputStr) {
+      if (!inputStr) return null;
+      const clean = inputStr.trim().toLowerCase().replace('s', '');
+      if (!clean) return null;
+
+      // Handle MM:SS or HH:MM:SS
+      if (clean.includes(':')) {
+        const parts = clean.split(':').map(Number);
+        if (parts.some(isNaN)) return null;
+        if (parts.length === 2) {
+          return parts[0] * 60 + parts[1];
+        } else if (parts.length === 3) {
+          return parts[0] * 3600 + parts[1] * 60 + parts[2];
+        }
+      }
+
+      // Handle pure numeric seconds
+      const num = parseFloat(clean);
+      return isNaN(num) ? null : num;
+    }
+
+    function getEffectiveCurrentTime() {
+      if (!video) return 0;
+      return currentStreamOffset + (video.currentTime || 0);
+    }
+
+    // Update Scrubber & Time Display on Playback
+    function updateProgressUI() {
+      const cur = getEffectiveCurrentTime();
+      const dur = totalDuration || (video.duration ? video.duration + currentStreamOffset : 0);
+
+      timeDisplay.textContent = `${formatTime(cur)} / ${formatTime(dur)}`;
+
+      if (dur > 0) {
+        const pct = Math.min(100, Math.max(0, (cur / dur) * 100));
+        timelineFill.style.width = `${pct}%`;
+      }
+    }
+
+    video.ontimeupdate = () => {
+      if (!isDraggingTimeline) {
+        updateProgressUI();
+      }
+    };
+
+    video.onloadedmetadata = () => {
+      if (video.duration && !isNaN(video.duration) && video.duration !== Infinity) {
+        if (!totalDuration || currentStreamOffset === 0) {
+          totalDuration = Math.round(video.duration);
+        }
+      }
+      updateProgressUI();
+    };
 
     // 1. Fetch Full Catalog from AppSail API
     async function loadCatalog() {
@@ -405,8 +614,8 @@
       });
     }
 
-    // 5. Fetch & Populate Real Audio Tracks for Active Episode
-    async function updateAudioTracks(ep) {
+    // 5. Fetch & Populate Real Audio Tracks & Exact Duration
+    async function updateAudioTracksAndDuration(ep) {
       audioSelect.innerHTML = '<option value="0">Detecting audio...</option>';
       audioSelect.disabled = true;
 
@@ -414,6 +623,11 @@
         const res = await fetch(`/api/tracks?key=${encodeURIComponent(ep.key)}`);
         const data = await res.json();
         audioSelect.innerHTML = '';
+
+        if (data.duration && data.duration > 0) {
+          totalDuration = data.duration;
+          updateProgressUI();
+        }
 
         if (data.audioTracks && data.audioTracks.length > 0) {
           data.audioTracks.forEach(t => {
@@ -443,14 +657,16 @@
     function playEpisode(ep, targetTime = 0, audioIdx = 0) {
       activeEpisode = ep;
       currentAudioIndex = audioIdx;
+      currentStreamOffset = targetTime;
+      totalDuration = 0;
 
       playerTitle.textContent = `${activeShow.title} - ${ep.title}`;
       playerSubtitle.textContent = `Loading from Zoho Stratus • Key: ${ep.key}`;
 
-      // Update real available audio tracks
-      updateAudioTracks(ep);
+      // Update real available audio tracks and exact duration
+      updateAudioTracksAndDuration(ep);
 
-      // Construct streaming URL: default to direct Range stream, use &audio= if audio track > 0
+      // Default stream URL
       let streamUrl = `/api/stream?key=${encodeURIComponent(ep.key)}`;
       if (currentAudioIndex > 0) {
         streamUrl += `&audio=${currentAudioIndex}`;
@@ -470,32 +686,153 @@
       renderEpisodes(currentEpisodesList);
     }
 
-    // 7. Interactive Audio Language Switcher
+    // 7. Universal Seek Function (Works on ALL formats and timestamps)
+    function seekToTimestamp(targetSeconds) {
+      if (!activeEpisode) return;
+
+      const dur = totalDuration || (video.duration ? video.duration + currentStreamOffset : 999999);
+      const clampedSec = Math.max(0, Math.min(Math.floor(targetSeconds), dur));
+      const isPaused = video.paused;
+      const isMkv = activeEpisode.key.toLowerCase().endsWith('.mkv');
+
+      // If playing with audio override OR is MKV container: reload stream with -ss offset
+      if (currentAudioIndex > 0 || isMkv) {
+        currentStreamOffset = clampedSec;
+        playerSubtitle.textContent = `⚡ Jumping to ${formatTime(clampedSec)}...`;
+
+        const newSrc = `/api/stream?key=${encodeURIComponent(activeEpisode.key)}&audio=${currentAudioIndex}&t=${clampedSec}`;
+        video.src = newSrc;
+        video.load();
+
+        video.onloadeddata = () => {
+          if (!isPaused) video.play().catch(() => {});
+          playerSubtitle.textContent = `Playing at ${formatTime(clampedSec)} • Active: ${activeEpisode.title}`;
+          video.onloadeddata = null;
+        };
+      } else {
+        // Standard MP4: instant native range seek
+        currentStreamOffset = 0;
+        video.currentTime = clampedSec;
+        if (!isPaused) video.play().catch(() => {});
+      }
+
+      updateProgressUI();
+    }
+
+    // 8. Interactive Timeline Scrubber (Click & Drag)
+    function getTimelineTimeFromEvent(e) {
+      const rect = timelineTrack.getBoundingClientRect();
+      const clickX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+      const percent = clickX / rect.width;
+      const dur = totalDuration || (video.duration ? video.duration + currentStreamOffset : 0);
+      return { time: percent * dur, percent: percent * 100, clientX: e.clientX, rect: rect };
+    }
+
+    timelineContainer.addEventListener('mousemove', (e) => {
+      const { time, clientX, rect } = getTimelineTimeFromEvent(e);
+      timelineHoverTime.style.display = 'block';
+      timelineHoverTime.style.left = `${clientX - rect.left}px`;
+      timelineHoverTime.textContent = formatTime(time);
+    });
+
+    timelineContainer.addEventListener('mouseleave', () => {
+      if (!isDraggingTimeline) {
+        timelineHoverTime.style.display = 'none';
+      }
+    });
+
+    timelineContainer.addEventListener('click', (e) => {
+      const { time } = getTimelineTimeFromEvent(e);
+      seekToTimestamp(time);
+    });
+
+    timelineContainer.addEventListener('mousedown', (e) => {
+      isDraggingTimeline = true;
+      const { time, percent } = getTimelineTimeFromEvent(e);
+      timelineFill.style.width = `${percent}%`;
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (isDraggingTimeline) {
+        const { time, percent } = getTimelineTimeFromEvent(e);
+        timelineFill.style.width = `${percent}%`;
+        timeDisplay.textContent = `${formatTime(time)} / ${formatTime(totalDuration)}`;
+      }
+    });
+
+    window.addEventListener('mouseup', (e) => {
+      if (isDraggingTimeline) {
+        isDraggingTimeline = false;
+        timelineHoverTime.style.display = 'none';
+        const { time } = getTimelineTimeFromEvent(e);
+        seekToTimestamp(time);
+      }
+    });
+
+    // 9. Jump to Timestamp Input Event
+    function handleJumpInput() {
+      const val = jumpTimeInput.value;
+      const parsed = parseTime(val);
+      if (parsed === null) {
+        alert('Please enter a valid time (e.g. 05:20, 12:00, or 90)');
+        return;
+      }
+      seekToTimestamp(parsed);
+      jumpTimeInput.value = '';
+    }
+
+    btnJump.onclick = handleJumpInput;
+    jumpTimeInput.onkeydown = (e) => {
+      if (e.key === 'Enter') {
+        handleJumpInput();
+      }
+    };
+
+    // 10. Quick Relative Skip Buttons
+    btnBack30.onclick = () => seekToTimestamp(getEffectiveCurrentTime() - 30);
+    btnBack10.onclick = () => seekToTimestamp(getEffectiveCurrentTime() - 10);
+    btnFwd10.onclick = () => seekToTimestamp(getEffectiveCurrentTime() + 10);
+    btnFwd30.onclick = () => seekToTimestamp(getEffectiveCurrentTime() + 30);
+    btnSkipIntro.onclick = () => seekToTimestamp(getEffectiveCurrentTime() + 90);
+
+    // 11. Interactive Audio Language Switcher
     audioSelect.onchange = (e) => {
       if (!activeEpisode) return;
       const newAudioIdx = parseInt(e.target.value, 10);
       currentAudioIndex = newAudioIdx;
-      const curTime = Math.floor(video.currentTime || 0);
-      const isPaused = video.paused;
+      const curTime = Math.floor(getEffectiveCurrentTime());
       const selectedName = e.target.options[e.target.selectedIndex].text;
 
-      playerSubtitle.textContent = `⚡ Switching audio track to ${selectedName}...`;
-
-      // Reload stream dynamically with chosen audio track at current timestamp
-      const newSrc = `/api/stream?key=${encodeURIComponent(activeEpisode.key)}&audio=${newAudioIdx}&t=${curTime}`;
-      video.src = newSrc;
-      video.load();
-
-      video.onloadeddata = () => {
-        if (!isPaused) {
-          video.play().catch(() => {});
-        }
-        playerSubtitle.textContent = `Streaming with ${selectedName} • Active Episode: ${activeEpisode.title}`;
-        video.onloadeddata = null;
-      };
+      seekToTimestamp(curTime);
+      playerSubtitle.textContent = `Streaming with ${selectedName} • Active: ${activeEpisode.title}`;
     };
 
-    // Navigation and Seeking Controls
+    // 12. Universal Keyboard Shortcuts
+    window.addEventListener('keydown', (e) => {
+      // Ignore if typing in text inputs
+      if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+
+      if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'j') {
+        e.preventDefault();
+        seekToTimestamp(getEffectiveCurrentTime() - 10);
+      } else if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'l') {
+        e.preventDefault();
+        seekToTimestamp(getEffectiveCurrentTime() + 10);
+      } else if (e.key === ' ' || e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        if (video.paused) video.play().catch(() => {});
+        else video.pause();
+      } else if (e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        if (!document.fullscreenElement) video.requestFullscreen().catch(() => {});
+        else document.exitFullscreen().catch(() => {});
+      } else if (e.key.toLowerCase() === 'm') {
+        e.preventDefault();
+        video.muted = !video.muted;
+      }
+    });
+
+    // 13. Search & Navigation
     seasonSelect.onchange = (e) => selectSeason(e.target.value);
 
     searchInput.oninput = (e) => {
@@ -508,15 +845,6 @@
       renderEpisodes(filtered);
     };
 
-    function seekRelative(seconds) {
-      if (!video) return;
-      video.currentTime = Math.max(0, (video.currentTime || 0) + seconds);
-    }
-
-    btnBack10.onclick = () => seekRelative(-10);
-    btnFwd10.onclick = () => seekRelative(10);
-    btnSkipIntro.onclick = () => seekRelative(90);
-
     btnNextEp.onclick = () => {
       if (!activeEpisode) return;
       const curIdx = currentEpisodesList.findIndex(e => e.id === activeEpisode.id);
@@ -527,7 +855,6 @@
       }
     };
 
-    // Auto-advance to next episode when ended
     video.onended = () => {
       btnNextEp.click();
     };
