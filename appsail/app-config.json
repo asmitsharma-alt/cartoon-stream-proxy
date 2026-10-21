@@ -1,0 +1,10 @@
+{
+  "command": "node app.js",
+  "build_path": "./",
+  "stack": "node20",
+  "memory": 512,
+  "env_variables": {
+    "NODE_ENV": "production"
+  },
+  "catalyst_auth": false
+}

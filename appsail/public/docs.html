@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API & AI Agent Documentation — Cartoon Stream Server</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card-bg: #161b22;
+      --card-border: #30363d;
+      --primary: #E50914;
+      --accent: #58a6ff;
+      --success: #238636;
+      --text: #f0f6fc;
+      --text-muted: #8b949e;
+      --code-bg: #0a0c10;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    header {
+      background: rgba(22, 27, 34, 0.95);
+      backdrop-filter: blur(10px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      padding: 1rem 2rem;
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: var(--primary);
+      text-decoration: none;
+    }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .nav-link {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 600;
+      padding: 0.4rem 0.8rem;
+      border-radius: 6px;
+      transition: all 0.2s;
+    }
+    .nav-link:hover, .nav-link.active {
+      color: #fff;
+      background: #21262d;
+    }
+    .badge {
+      font-size: 0.75rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      background: #21262d;
+      color: #fff;
+      font-weight: 600;
+    }
+    .badge-success {
+      background: rgba(35, 134, 54, 0.2);
+      color: #3fb950;
+      border: 1px solid rgba(63, 185, 80, 0.3);
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2.5rem 2rem;
+    }
+    .hero {
+      margin-bottom: 3rem;
+      padding-bottom: 2rem;
+      border-bottom: 1px solid var(--card-border);
+    }
+    .hero h1 {
+      font-size: 2.5rem;
+      font-weight: 800;
+      margin-bottom: 0.75rem;
+      background: linear-gradient(135deg, #fff 40%, var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero p {
+      font-size: 1.15rem;
+      color: var(--text-muted);
+      max-width: 800px;
+      margin-bottom: 1.5rem;
+    }
+    .btn-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+    .btn {
+      background: #21262d;
+      color: #fff;
+      border: 1px solid var(--card-border);
+      padding: 0.6rem 1.2rem;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.2s ease;
+    }
+    .btn:hover {
+      background: #30363d;
+      border-color: #8b949e;
+    }
+    .btn-primary {
+      background: var(--primary);
+      border-color: var(--primary);
+    }
+    .btn-primary:hover {
+      background: #b80710;
+    }
+    .btn-accent {
+      background: #1f6feb;
+      border-color: #1f6feb;
+    }
+    .btn-accent:hover {
+      background: #388bfd;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 3rem;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 1.5rem;
+    }
+    .card h3 {
+      font-size: 1.15rem;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .card p {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin-bottom: 1rem;
+    }
+    /* Section & Endpoint Cards */
+    .section-title {
+      font-size: 1.6rem;
+      font-weight: 700;
+      margin: 2.5rem 0 1rem 0;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    .endpoint-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      margin-bottom: 1.5rem;
+      overflow: hidden;
+    }
+    .endpoint-header {
+      padding: 1rem 1.5rem;
+      background: #1b2128;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--card-border);
+      cursor: pointer;
+    }
+    .endpoint-left {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .method-get {
+      background: rgba(56, 139, 253, 0.15);
+      color: #58a6ff;
+      border: 1px solid rgba(88, 166, 255, 0.3);
+      padding: 0.2rem 0.6rem;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: 0.8rem;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .endpoint-path {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #fff;
+    }
+    .endpoint-body {
+      padding: 1.5rem;
+    }
+    .endpoint-body p {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin-bottom: 1rem;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.85rem;
+    }
+    th, td {
+      padding: 0.6rem 0.8rem;
+      text-align: left;
+      border-bottom: 1px solid var(--card-border);
+    }
+    th {
+      color: var(--text-muted);
+      font-weight: 600;
+      background: rgba(255,255,255,0.02);
+    }
+    code {
+      font-family: 'JetBrains Mono', monospace;
+      background: rgba(110, 118, 129, 0.2);
+      padding: 0.2rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.85em;
+      color: #e6edf3;
+    }
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--card-border);
+      padding: 1rem;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      color: #58a6ff;
+      margin: 0.5rem 0 1rem 0;
+      position: relative;
+    }
+    .copy-btn {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      background: #21262d;
+      border: 1px solid var(--card-border);
+      color: #c9d1d9;
+      font-size: 0.75rem;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .copy-btn:hover { background: #30363d; color: #fff; }
+    /* Live Console */
+    .console-box {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 1.25rem;
+      margin-top: 1rem;
+    }
+    .console-input-group {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+    .console-input {
+      flex: 1;
+      min-width: 250px;
+      background: #161b22;
+      border: 1px solid #30363d;
+      color: #fff;
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <a href="/" class="brand">
+      <span>🍿 CARTOON STREAM</span>
+      <span class="badge">DEVELOPER & AI HUB</span>
+    </a>
+    <nav class="nav-links">
+      <a href="/" class="nav-link">▶ Video Player</a>
+      <a href="/docs" class="nav-link active">📖 Documentation</a>
+      <a href="/llms.txt" target="_blank" class="nav-link">🤖 llms.txt</a>
+      <a href="/openapi.json" target="_blank" class="nav-link">⚡ OpenAPI Spec</a>
+      <span id="health-badge" class="badge badge-success">● ONLINE</span>
+    </nav>
+  </header>
+
+  <main class="container">
+
+    <!-- HERO -->
+    <section class="hero">
+      <h1>Server & Media Architecture Documentation</h1>
+      <p>Complete machine-readable reference, interactive live console, and integration guidelines for AI Agents, LLM pair programmers, autonomous scrapers, and web applications.</p>
+      <div class="btn-group">
+        <button class="btn btn-primary" onclick="copyAIPrompt()">📋 Copy Full AI Context Prompt</button>
+        <a href="/llms.txt" target="_blank" class="btn">🤖 View Standard llms.txt</a>
+        <a href="/openapi.json" target="_blank" class="btn">⚡ Download OpenAPI 3.0 Schema</a>
+        <a href="/" class="btn btn-accent">🍿 Open Web Player</a>
+      </div>
+    </section>
+
+    <!-- ARCHITECTURE AT A GLANCE -->
+    <div class="grid-2">
+      <div class="card">
+        <h3>☁️ Infrastructure & Cloud Stack</h3>
+        <p>Persistent Node.js 20 Linux x64 container deployed on Zoho Catalyst AppSail with bundled static FFmpeg and global CORS headers.</p>
+        <ul style="list-style: none; font-size: 0.85rem; color: #8b949e; line-height: 1.8;">
+          <li>• <strong>Compute</strong>: Zoho Catalyst AppSail (PaaS)</li>
+          <li>• <strong>Storage</strong>: Zoho Stratus Object Storage (HTTP 206 Byte-Range)</li>
+          <li>• <strong>Media Engine</strong>: Embedded FFmpeg 7.0.2 & FFprobe 7.0.2</li>
+          <li>• <strong>Protocol</strong>: Fragmented MP4 (fMP4) & Dynamic HLS (m3u8)</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>📦 Live Media Catalog (1,237 Titles)</h3>
+        <p>All series migrated cloud-to-cloud and immediately available for seeking and multi-track audio playback.</p>
+        <ul style="list-style: none; font-size: 0.85rem; color: #8b949e; line-height: 1.8;">
+          <li>• <strong>Lucky Man (1994)</strong>: 50 Episodes (Hindi, Tamil, Telugu)</li>
+          <li>• <strong>Pokémon (1997–2023)</strong>: 1,147 Episodes across 23 Seasons</li>
+          <li>• <strong>Doraemon Theatrical</strong>: 40 Full-length 1080p Movies (1980–2024)</li>
+          <li>• <strong>Seeking</strong>: Instant Range Seeking & <code>-ss</code> Timestamp Seeking</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- API ENDPOINT REFERENCE -->
+    <h2 class="section-title">📡 Core API Endpoints</h2>
+
+    <!-- 1. GET /api/catalog -->
+    <div class="endpoint-card">
+      <div class="endpoint-header">
+        <div class="endpoint-left">
+          <span class="method-get">GET</span>
+          <span class="endpoint-path">/api/catalog</span>
+        </div>
+        <span class="badge">Top-Level Summary</span>
+      </div>
+      <div class="endpoint-body">
+        <p>Returns high-level metadata for all shows in the library, including season names, episode counts, and poster image URLs.</p>
+        <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X GET "https://cartoon-server-50046883835.development.catalystappsail.in/api/catalog"</pre>
+        <div class="console-box">
+          <div class="console-input-group">
+            <input type="text" class="console-input" value="/api/catalog" readonly>
+            <button class="btn btn-primary" onclick="testLiveEndpoint('/api/catalog', 'catalog-out')">Test Live ⚡</button>
+          </div>
+          <pre id="catalog-out">// Click "Test Live" to execute request...</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. GET /api/show/:id -->
+    <div class="endpoint-card">
+      <div class="endpoint-header">
+        <div class="endpoint-left">
+          <span class="method-get">GET</span>
+          <span class="endpoint-path">/api/show/:id</span>
+        </div>
+        <span class="badge">Full Show Catalog</span>
+      </div>
+      <div class="endpoint-body">
+        <p>Fetches the complete episode list, storage keys, filenames, and direct URLs for a given show ID (<code>luckyman</code>, <code>pokemon</code>, or <code>doraemon-movies</code>).</p>
+        <table>
+          <thead><tr><th>Parameter</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>id</code> (path)</td><td>string</td><td>Show identifier: <code>luckyman</code> | <code>pokemon</code> | <code>doraemon-movies</code></td></tr>
+          </tbody>
+        </table>
+        <div class="console-box">
+          <div class="console-input-group">
+            <select id="show-select-test" class="console-input" style="max-width: 200px;">
+              <option value="luckyman">luckyman</option>
+              <option value="pokemon">pokemon</option>
+              <option value="doraemon-movies">doraemon-movies</option>
+            </select>
+            <button class="btn btn-primary" onclick="testLiveEndpoint('/api/show/' + document.getElementById('show-select-test').value, 'show-out')">Test Live ⚡</button>
+          </div>
+          <pre id="show-out">// Click "Test Live" to inspect show payload...</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. GET /api/tracks -->
+    <div class="endpoint-card">
+      <div class="endpoint-header">
+        <div class="endpoint-left">
+          <span class="method-get">GET</span>
+          <span class="endpoint-path">/api/tracks?key=:stratusKey</span>
+        </div>
+        <span class="badge">Media Stream & Duration Introspection</span>
+      </div>
+      <div class="endpoint-body">
+        <p>Executes an in-cloud FFprobe probe on the remote media file. Returns exact duration in seconds and all audio streams with language tags and stream indices. Results are cached in memory.</p>
+        <table>
+          <thead><tr><th>Parameter</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>key</code> (query)</td><td>string</td><td>Required. Zoho Stratus storage key (e.g. <code>Luckyman/Season 01/Luckyman_S01E01__RareToonsIndia_.mkv</code>)</td></tr>
+          </tbody>
+        </table>
+        <div class="console-box">
+          <div class="console-input-group">
+            <input type="text" id="tracks-key-input" class="console-input" value="Luckyman/Season 01/Luckyman_S01E01__RareToonsIndia_.mkv">
+            <button class="btn btn-primary" onclick="testLiveEndpoint('/api/tracks?key=' + encodeURIComponent(document.getElementById('tracks-key-input').value), 'tracks-out')">Probe Tracks ⚡</button>
+          </div>
+          <pre id="tracks-out">// Click "Probe Tracks" to introspect audio streams and duration...</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. GET /api/stream -->
+    <div class="endpoint-card">
+      <div class="endpoint-header">
+        <div class="endpoint-left">
+          <span class="method-get">GET</span>
+          <span class="endpoint-path">/api/stream?key=:key[&audio=:idx][&t=:seconds]</span>
+        </div>
+        <span class="badge">Streaming Proxy & Dynamic Remux</span>
+      </div>
+      <div class="endpoint-body">
+        <p>High-performance video streaming endpoint. Proxies HTTP 206 range requests directly from Zoho Stratus, or executes zero-transcode FFmpeg stream copying with AAC audio remuxing when audio track switching or timestamp jumping is requested.</p>
+        <table>
+          <thead><tr><th>Parameter</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>key</code> (query)</td><td>string</td><td>Required. Zoho Stratus object key.</td></tr>
+            <tr><td><code>audio</code> (query)</td><td>integer</td><td>Optional. Audio stream index (<code>0</code> = Hindi/default, <code>1</code> = Tamil, <code>2</code> = Telugu, etc.).</td></tr>
+            <tr><td><code>t</code> (query)</td><td>number</td><td>Optional. Timestamp in seconds (e.g. <code>t=90</code> or <code>t=300</code>). Starts streaming directly from that second with zero delay.</td></tr>
+          </tbody>
+        </table>
+        <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>// Example: Play Lucky Man Episode 1 in Tamil starting at minute 5:00 (300s):
+https://cartoon-server-50046883835.development.catalystappsail.in/api/stream?key=Luckyman%2FSeason%2001%2FLuckyman_S01E01__RareToonsIndia_.mkv&audio=1&t=300</pre>
+      </div>
+    </div>
+
+    <!-- 5. GET /api/diag -->
+    <div class="endpoint-card">
+      <div class="endpoint-header">
+        <div class="endpoint-left">
+          <span class="method-get">GET</span>
+          <span class="endpoint-path">/api/diag</span>
+        </div>
+        <span class="badge">Engine & Binaries Health</span>
+      </div>
+      <div class="endpoint-body">
+        <p>Returns underlying container runtime details, architecture, Node version, and verified versions of bundled FFmpeg and FFprobe binaries.</p>
+        <div class="console-box">
+          <div class="console-input-group">
+            <input type="text" class="console-input" value="/api/diag" readonly>
+            <button class="btn btn-primary" onclick="testLiveEndpoint('/api/diag', 'diag-out')">Test Live ⚡</button>
+          </div>
+          <pre id="diag-out">// Click "Test Live" to check container status...</pre>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    // Live Endpoint Testing in Browser
+    async function testLiveEndpoint(path, outputId) {
+      const out = document.getElementById(outputId);
+      out.textContent = '⏳ Executing request to ' + path + '...';
+      try {
+        const start = performance.now();
+        const res = await fetch(path);
+        const data = await res.json();
+        const duration = Math.round(performance.now() - start);
+        out.textContent = `// HTTP ${res.status} OK (${duration}ms)\n` + JSON.stringify(data, null, 2);
+      } catch (err) {
+        out.textContent = '// Request Error: ' + err.message;
+      }
+    }
+
+    // Copy to clipboard helper
+    function copyCode(btn) {
+      const pre = btn.parentElement;
+      const text = pre.textContent.replace('Copy', '').trim();
+      navigator.clipboard.writeText(text);
+      btn.textContent = 'Copied!';
+      setTimeout(() => btn.textContent = 'Copy', 2000);
+    }
+
+    // Copy Full AI Context Prompt
+    function copyAIPrompt() {
+      const prompt = `# Cartoon Stream Server — AI Agent System Context
+
+Base URL: https://cartoon-server-50046883835.development.catalystappsail.in
+Storage Bucket: https://stream-development.zohostratus.in
+
+## Endpoints:
+1. GET /api/catalog — List all shows (luckyman, pokemon, doraemon-movies)
+2. GET /api/show/:id — Full seasons and episodes list with keys
+3. GET /api/tracks?key={key} — Returns total duration in seconds and all audio streams (hin, tam, tel, etc.)
+4. GET /api/stream?key={key}&audio={index}&t={seconds} — Stream video with range seeking, multi-audio selection, and timestamp jump.
+5. Standard Machine Discovery: /llms.txt and /openapi.json
+
+## How to play an episode:
+1. Query /api/show/luckyman to get episode object with .key
+2. Query /api/tracks?key={key} to find audio options and duration
+3. Set player src to /api/stream?key={encodeURIComponent(key)}&audio={selectedAudioIndex}&t={seconds}`;
+
+      navigator.clipboard.writeText(prompt);
+      alert('AI Context Prompt copied to clipboard! You can now paste it into ChatGPT, Claude, Gemini, or an AI coding agent.');
+    }
+
+    // Ping /api/health on load
+    fetch('/api/health')
+      .then(r => r.json())
+      .then(d => {
+        document.getElementById('health-badge').textContent = `● ONLINE (${d.shows_count} Shows Loaded)`;
+      })
+      .catch(() => {
+        document.getElementById('health-badge').textContent = `● CHECK STATUS`;
+        document.getElementById('health-badge').style.color = '#e50914';
+      });
+  </script>
+</body>
+</html>

@@ -1,0 +1,164 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Cartoon Stream Media Server",
+    "description": "High-performance anime & cartoon streaming API on Zoho Catalyst AppSail with Zoho Stratus Object Storage and dynamic FFmpeg multi-audio remuxing.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://cartoon-server-50046883835.development.catalystappsail.in",
+      "description": "Live Zoho Catalyst AppSail Cloud Server"
+    }
+  ],
+  "paths": {
+    "/api/catalog": {
+      "get": {
+        "summary": "Get Library Summary",
+        "description": "Returns top-level list of all available shows, descriptions, and episode counts.",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "shows": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "title": { "type": "string" },
+                          "description": { "type": "string" },
+                          "banner": { "type": "string" },
+                          "seasons": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "name": { "type": "string" },
+                                "episode_count": { "type": "integer" }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/show/{id}": {
+      "get": {
+        "summary": "Get Show Details & Episodes",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Show identifier ('luckyman', 'pokemon', 'doraemon-movies')",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Full show payload with all seasons and episode keys" },
+          "404": { "description": "Show not found" }
+        }
+      }
+    },
+    "/api/tracks": {
+      "get": {
+        "summary": "Introspect Media Streams & Duration",
+        "description": "Executes FFprobe on the Stratus storage object to return exact duration and audio tracks.",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "query",
+            "required": true,
+            "description": "Zoho Stratus storage key",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Track inspection metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "duration": { "type": "integer", "description": "Duration in seconds" },
+                    "audioTracks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "index": { "type": "integer" },
+                          "streamIndex": { "type": "integer" },
+                          "language": { "type": "string" },
+                          "label": { "type": "string" },
+                          "codec": { "type": "string" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/stream": {
+      "get": {
+        "summary": "Stream Video Media",
+        "description": "Streams video with HTTP 206 Byte-Range seeking or dynamic FFmpeg stream copy with audio track selection and timestamp seeking.",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "query",
+            "required": true,
+            "description": "Storage key from catalog",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "audio",
+            "in": "query",
+            "required": false,
+            "description": "Audio stream index (0 = default/Hindi, 1 = Tamil, 2 = Telugu, etc.)",
+            "schema": { "type": "integer" }
+          },
+          {
+            "name": "t",
+            "in": "query",
+            "required": false,
+            "description": "Start timestamp in seconds",
+            "schema": { "type": "number" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Video stream", "content": { "video/mp4": {} } },
+          "206": { "description": "Partial Content byte-range video stream", "content": { "video/mp4": {} } }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "summary": "Server Health",
+        "responses": { "200": { "description": "Health status" } }
+      }
+    },
+    "/api/diag": {
+      "get": {
+        "summary": "Runtime & Binary Diagnostics",
+        "responses": { "200": { "description": "Runtime, Node version, FFmpeg and FFprobe versions" } }
+      }
+    }
+  }
+}

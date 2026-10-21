@@ -1,0 +1,111 @@
+# Cartoon Stream Server — AI Agent & Developer Reference
+
+> High-performance anime and cartoon streaming backend and proxy running on Zoho Catalyst AppSail with Zoho Stratus Object Storage and bundled FFmpeg audio remuxing.
+
+## Architecture
+- Base URL: https://cartoon-server-50046883835.development.catalystappsail.in
+- Storage Bucket: https://stream-development.zohostratus.in
+- Platform: Zoho Catalyst AppSail (Persistent Node.js 20 Linux x64 Container)
+- Media Engine: Native Linux x64 static FFmpeg & FFprobe (v7.0.2)
+- Total Content: 1,237 Titles (50 Lucky Man episodes, 1,147 Pokémon episodes across 23 seasons, 40 Doraemon Theatrical Movies)
+
+## Available Shows
+1. `luckyman` — Lucky Man (1994): 50 episodes in 1080p HEVC MKV with 3 audio streams (Hindi, Tamil, Telugu).
+2. `pokemon` — Pokémon (Complete Series): 1,147 episodes across 23 seasons (Kanto to Ultimate Journeys).
+3. `doraemon-movies` — Doraemon Theatrical Movies: 40 full-length cinematic movies (1980–2024).
+
+---
+
+## API Endpoints
+
+### 1. Catalog Summary
+- **Method**: `GET`
+- **Path**: `/api/catalog`
+- **Query Params**: None
+- **Response Format**: `application/json`
+```json
+{
+  "shows": [
+    {
+      "id": "luckyman",
+      "title": "Lucky Man (1994)",
+      "description": "The complete classic superhero anime series...",
+      "banner": "https://...",
+      "seasons": [{ "name": "Season 01", "episode_count": 50 }]
+    }
+  ]
+}
+```
+
+### 2. Show Details & Episode List
+- **Method**: `GET`
+- **Path**: `/api/show/:id`
+- **URL Parameter**: `id` (`luckyman`, `pokemon`, `doraemon-movies`)
+- **Response Format**: `application/json`
+```json
+{
+  "id": "luckyman",
+  "title": "Lucky Man (1994)",
+  "seasons": {
+    "Season 01": [
+      {
+        "id": "luckyman_s01e01",
+        "episode_number": 1,
+        "title": "Episode 01",
+        "filename": "Luckyman S01E01 [RareToonsIndia].mkv",
+        "key": "Luckyman/Season 01/Luckyman_S01E01__RareToonsIndia_.mkv",
+        "stream_url": "https://stream-development.zohostratus.in/Luckyman/Season%2001/Luckyman_S01E01__RareToonsIndia_.mkv",
+        "languages": ["Hindi (Default)", "Tamil", "Telugu"],
+        "size_mb": 260.7
+      }
+    ]
+  }
+}
+```
+
+### 3. Media Tracks & Duration Introspection
+- **Method**: `GET`
+- **Path**: `/api/tracks`
+- **Query Parameters**:
+  - `key` (string, required): The storage key (e.g. `Luckyman/Season 01/Luckyman_S01E01__RareToonsIndia_.mkv`)
+- **Description**: Deep-probes the remote media in Stratus using bundled FFprobe. Results are cached in memory.
+- **Response Format**: `application/json`
+```json
+{
+  "duration": 1329,
+  "audioTracks": [
+    { "index": 0, "streamIndex": 1, "language": "hin", "label": "🔊 Hindi (Default)", "codec": "opus" },
+    { "index": 1, "streamIndex": 2, "language": "tam", "label": "🔊 Tamil", "codec": "opus" },
+    { "index": 2, "streamIndex": 3, "language": "tel", "label": "🔊 Telugu", "codec": "opus" }
+  ]
+}
+```
+
+### 4. Video Streaming Proxy (HTTP 206 + Dynamic Remux)
+- **Method**: `GET`
+- **Path**: `/api/stream`
+- **Query Parameters**:
+  - `key` (string, required): Storage key from catalog.
+  - `audio` (integer, optional): Audio stream index (`0` for default, `1` for secondary language, etc.).
+  - `t` (number, optional): Start timestamp in seconds for instant seek (e.g. `t=90` or `t=300`).
+- **Behaviors**:
+  - Standard MP4 without audio override: Proxied directly to Zoho Stratus with HTTP 206 Byte-Range seeking support.
+  - Multi-audio / MKV / Timestamp Seek: Dynamically remuxed via FFmpeg (`-c:v copy` stream copy, `-c:a aac` universal audio transcode, fragmented MP4 output).
+- **Supported Headers**: `Range: bytes=start-end`
+- **Response**: `video/mp4` stream.
+
+### 5. Dynamic HLS Master Playlist
+- **Method**: `GET`
+- **Path**: `/api/hls/:encodedKey/master.m3u8`
+- **Response**: `application/vnd.apple.mpegurl` master playlist.
+
+### 6. Diagnostics & System Info
+- **GET /api/health**: Returns server uptime, status, timestamp, and show count.
+- **GET /api/diag**: Returns Node.js version, platform, architecture, FFmpeg version, and FFprobe version.
+
+---
+
+## Instructions for AI Agents & LLM Integrations
+- To stream any episode: First query `/api/show/{id}`, pick an episode's `key`, query `/api/tracks?key={key}` to check available audio tracks, and construct the stream URL:
+  `https://cartoon-server-50046883835.development.catalystappsail.in/api/stream?key={encodeURIComponent(key)}&audio={audioIndex}&t={seconds}`
+- Video players can use standard HTML5 `<video>` or Hls.js. Seeking is supported via `t={seconds}` or HTTP `Range` headers.

@@ -48,6 +48,21 @@ app.use(cors({
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Documentation & AI Agent Discovery Routes
+app.get('/docs', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'docs.html'));
+});
+
+app.get('/llms.txt', (req, res) => {
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.sendFile(path.join(__dirname, 'public', 'llms.txt'));
+});
+
+app.get('/openapi.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.sendFile(path.join(__dirname, 'public', 'openapi.json'));
+});
+
 // ==========================================
 // 1. HEALTH & METRICS
 // ==========================================
