@@ -9,6 +9,7 @@ on:
         default: 'movies-turbo'
         type: choice
         options:
+          - pokemon-missing
           - pokemon-turbo
           - pokemon
           - pokemon-batch-1

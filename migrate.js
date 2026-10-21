@@ -340,34 +340,42 @@ async function migrateFile(item, options = {}) {
     return { url: publicUrl, size: existingSize };
   }
 
-  const zohoToken = await getZohoToken();
-  const driveToken = await getGoogleToken();
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const zohoToken = await getZohoToken();
+      const driveToken = await getGoogleToken();
 
-  return new Promise((resolve, reject) => {
-    const driveReq = https.request({
-      hostname: 'www.googleapis.com',
-      path: `/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`,
-      method: 'GET',
-      headers: { 'Authorization': `Bearer ${driveToken}` }
-    }, (driveRes) => {
-      if (driveRes.statusCode === 302 || driveRes.statusCode === 303) {
-        const redirectUrl = new URL(driveRes.headers.location);
-        https.get(redirectUrl, (redirectRes) => {
-          handleUploadStream(redirectRes, targetKey, zohoToken, shouldConvertAudio, resolve, reject);
-        }).on('error', reject);
-        return;
-      }
+      return await new Promise((resolve, reject) => {
+        const driveReq = https.request({
+          hostname: 'www.googleapis.com',
+          path: `/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`,
+          method: 'GET',
+          headers: { 'Authorization': `Bearer ${driveToken}` }
+        }, (driveRes) => {
+          if (driveRes.statusCode === 302 || driveRes.statusCode === 303) {
+            const redirectUrl = new URL(driveRes.headers.location);
+            https.get(redirectUrl, (redirectRes) => {
+              handleUploadStream(redirectRes, targetKey, zohoToken, shouldConvertAudio, resolve, reject);
+            }).on('error', reject);
+            return;
+          }
 
-      if (driveRes.statusCode !== 200) {
-        return reject(new Error(`Google Drive returned status ${driveRes.statusCode}: ${driveRes.statusMessage}`));
-      }
+          if (driveRes.statusCode !== 200) {
+            return reject(new Error(`Google Drive returned status ${driveRes.statusCode}: ${driveRes.statusMessage}`));
+          }
 
-      handleUploadStream(driveRes, targetKey, zohoToken, shouldConvertAudio, resolve, reject);
-    });
+          handleUploadStream(driveRes, targetKey, zohoToken, shouldConvertAudio, resolve, reject);
+        });
 
-    driveReq.on('error', reject);
-    driveReq.end();
-  });
+        driveReq.on('error', reject);
+        driveReq.end();
+      });
+    } catch (err) {
+      if (attempt === 3) throw err;
+      console.warn(`⚠️ Retrying upload (attempt ${attempt}/3): ${err.message}`);
+      await new Promise(r => setTimeout(r, 2000 * attempt));
+    }
+  }
 
   function handleUploadStream(sourceStream, key, token, convertAudio, resolve, reject) {
     const uploadUrl = `${STRATUS_BASE_URL}/${encodeURI(key)}`;
@@ -862,6 +870,33 @@ async function run() {
         const i = currentIndex++;
         const item = seasonItems[i];
         console.log(`\n[Worker ${workerId}][${i + 1}/${seasonItems.length}] Processing: ${item.filename || item.title}`);
+        try {
+          await migrateFile(item, { prefix: 'episodes' });
+        } catch (err) {
+          console.error(`❌ [Worker ${workerId}] Error on item ${i + 1}:`, err.message);
+        }
+      }
+    }
+
+    const workers = Array.from({ length: concurrency }, (_, id) => worker(id + 1));
+    await Promise.all(workers);
+    return;
+  }
+
+  if (target === 'pokemon-missing' || target === 'pokemon-retry') {
+    const missingPath = path.join(__dirname, 'missing_pokemon.json');
+    const items = fs.existsSync(missingPath) 
+      ? JSON.parse(fs.readFileSync(missingPath, 'utf8'))
+      : JSON.parse(fs.readFileSync(path.join(__dirname, 'Pokemon_Google_Drive_Links.json'), 'utf8'));
+    const concurrency = parseInt(process.env.CONCURRENCY || '8', 10);
+    console.log(`⚡ Processing ${items.length} Pokemon episodes (missing/retry mode). Concurrency: ${concurrency}`);
+
+    let currentIndex = 0;
+    async function worker(workerId) {
+      while (currentIndex < items.length) {
+        const i = currentIndex++;
+        const item = items[i];
+        console.log(`\n[Worker ${workerId}][${i + 1}/${items.length}] Processing: ${item.filename || item.title}`);
         try {
           await migrateFile(item, { prefix: 'episodes' });
         } catch (err) {
