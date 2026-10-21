@@ -25,6 +25,7 @@ const app = express();
 const PORT = process.env.X_ZOHO_CATALYST_LISTEN_PORT || process.env.PORT || 9000;
 const BUCKET_BASE_URL = 'https://stream-development.zohostratus.in';
 const { scanBucketCatalog } = require('./scanner');
+const { searchTmdb, CANONICAL_SHOWS_TMDB } = require('./tmdb');
 
 // In-Memory Dynamic Catalog Management
 let catalog = { shows: [] };
@@ -198,6 +199,11 @@ app.get('/api/catalog', (req, res) => {
     title: show.title,
     description: show.description,
     banner: show.banner,
+    poster: show.poster || show.banner,
+    rating: show.rating || null,
+    year: show.year || null,
+    genres: show.genres || [],
+    total_episodes: Object.keys(show.seasons).reduce((acc, s) => acc + show.seasons[s].length, 0),
     seasons: Object.keys(show.seasons).map(sName => ({
       name: sName,
       episode_count: show.seasons[sName].length
@@ -247,6 +253,19 @@ app.get('/api/show/:id', (req, res) => {
     return res.status(404).json({ error: 'Show not found' });
   }
   res.json(show);
+});
+
+app.get('/api/tmdb/search', async (req, res) => {
+  const query = req.query.query;
+  const type = req.query.type || 'movie';
+  const year = req.query.year || null;
+  if (!query) return res.status(400).json({ error: 'Missing "query" parameter' });
+  try {
+    const result = await searchTmdb(query, type, year);
+    res.json(result || { error: 'Not found' });
+  } catch (err) {
+    res.status(500).json({ error: 'TMDB search error', details: err.message });
+  }
 });
 
 // In-Memory Track Cache

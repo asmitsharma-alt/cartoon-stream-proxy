@@ -197,16 +197,138 @@
       grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
       gap: 1.25rem;
     }
+    /* Hero Billboard */
+    .hero-billboard {
+      position: relative;
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 2rem;
+      min-height: 250px;
+      display: flex;
+      align-items: center;
+      border: 1px solid var(--border);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+      background: #181818;
+    }
+    .hero-bg {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-size: cover;
+      background-position: center;
+      filter: brightness(0.32) blur(1px);
+      z-index: 1;
+    }
+    .hero-content {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      gap: 1.75rem;
+      padding: 1.75rem 2rem;
+      align-items: center;
+      width: 100%;
+    }
+    .hero-poster {
+      width: 130px;
+      height: 195px;
+      border-radius: 8px;
+      object-fit: cover;
+      border: 2px solid rgba(255,255,255,0.8);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.85);
+      flex-shrink: 0;
+    }
+    .hero-details {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      max-width: 850px;
+    }
+    .hero-meta-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 0.85rem;
+      flex-wrap: wrap;
+    }
+    .hero-rating {
+      color: #FFDE00;
+      font-weight: 800;
+    }
+    .hero-year, .hero-genres {
+      color: #ccc;
+    }
+    .hero-title {
+      font-size: 2rem;
+      font-weight: 800;
+      color: #fff;
+      line-height: 1.15;
+    }
+    .hero-desc {
+      font-size: 0.95rem;
+      color: #ddd;
+      line-height: 1.5;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    /* Card Poster Wrappers */
+    .ep-poster-wrap {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16/9;
+      border-radius: 6px;
+      overflow: hidden;
+      background: #111;
+      margin-bottom: 0.5rem;
+    }
+    .ep-poster-wrap.movie-aspect {
+      aspect-ratio: 2/3;
+    }
+    .ep-poster-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.3s ease;
+    }
+    .ep-card:hover .ep-poster-img {
+      transform: scale(1.05);
+    }
+    .ep-rating-badge {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      background: rgba(0,0,0,0.85);
+      color: #FFDE00;
+      font-size: 0.75rem;
+      font-weight: 800;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      backdrop-filter: blur(4px);
+    }
+    .ep-year-badge {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: rgba(0,0,0,0.85);
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      backdrop-filter: blur(4px);
+    }
+
     .ep-card {
       background: var(--card-bg);
       border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 1rem;
+      padding: 0.85rem;
       cursor: pointer;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      gap: 0.75rem;
+      gap: 0.6rem;
       transition: transform 0.2s, border-color 0.2s;
     }
     .ep-card:hover {
@@ -413,6 +535,27 @@
       </div>
     </section>
 
+    <!-- HERO SHOW BILLBOARD -->
+    <section class="hero-billboard" id="hero-billboard" style="display: none;">
+      <div class="hero-bg" id="hero-bg"></div>
+      <div class="hero-content">
+        <img id="hero-poster" src="" alt="Show Poster" class="hero-poster"/>
+        <div class="hero-details">
+          <div class="hero-meta-row">
+            <span class="badge" style="background: #E50914; color: #fff; font-weight: 800;">TMDB ENRICHED</span>
+            <span class="hero-rating" id="hero-rating">★ 8.1 / 10</span>
+            <span class="hero-year" id="hero-year">1979 - Present</span>
+            <span class="hero-genres" id="hero-genres">Animation • Comedy</span>
+          </div>
+          <h1 class="hero-title" id="hero-title">Show Title</h1>
+          <p class="hero-desc" id="hero-desc">Show synopsis and overview...</p>
+          <div style="margin-top: 0.5rem;">
+            <button class="btn btn-primary" id="btn-hero-play" style="padding: 0.5rem 1.2rem; font-size: 0.95rem; font-weight: 700; background: #E50914; color: #fff; border: none; cursor: pointer;">▶ Play Now</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- SHOW SELECTOR TABS -->
     <div class="tabs" id="show-tabs"></div>
 
@@ -593,6 +736,25 @@
       const res = await fetch(`/api/show/${showId}`);
       activeShow = await res.json();
 
+      // Populate Hero Billboard
+      const heroEl = document.getElementById('hero-billboard');
+      if (heroEl) {
+        heroEl.style.display = 'flex';
+        document.getElementById('hero-bg').style.backgroundImage = `url('${activeShow.banner || activeShow.poster}')`;
+        document.getElementById('hero-poster').src = activeShow.poster || activeShow.banner;
+        document.getElementById('hero-title').textContent = activeShow.title;
+        document.getElementById('hero-desc').textContent = activeShow.description;
+        document.getElementById('hero-rating').textContent = activeShow.rating ? `★ ${activeShow.rating} / 10` : '★ 8.0';
+        document.getElementById('hero-year').textContent = activeShow.year || 'Classic';
+        document.getElementById('hero-genres').textContent = (activeShow.genres && activeShow.genres.join(' • ')) || 'Animation • Adventure';
+        
+        document.getElementById('btn-hero-play').onclick = () => {
+          if (currentEpisodesList && currentEpisodesList.length > 0) {
+            playEpisode(currentEpisodesList[0]);
+          }
+        };
+      }
+
       // Populate Season Dropdown
       const seasonKeys = Object.keys(activeShow.seasons);
       seasonSelect.innerHTML = '';
@@ -625,22 +787,36 @@
         return;
       }
 
+      const isMovieCollection = activeShow && activeShow.id === 'doraemon-movies';
+
       episodes.forEach(ep => {
         const card = document.createElement('div');
         card.className = `ep-card ${activeEpisode && activeEpisode.id === ep.id ? 'playing' : ''}`;
         card.onclick = () => playEpisode(ep);
 
+        const posterUrl = ep.poster || (isMovieCollection ? ep.backdrop : (activeShow.poster || activeShow.banner));
+        const ratingText = ep.rating ? `★ ${ep.rating}` : (activeShow.rating ? `★ ${activeShow.rating}` : '');
+        const yearText = ep.year || (ep.movie_number ? `Movie #${ep.movie_number}` : (ep.episode_number ? `EP ${ep.episode_number}` : ''));
+
         card.innerHTML = `
           <div>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-              <span class="ep-badge">EP ${ep.episode_number || ep.movie_number || '•'}</span>
-              <span style="font-size: 0.75rem; color: #4caf50;">⚡ Stream Ready</span>
+            ${posterUrl ? `
+              <div class="ep-poster-wrap ${isMovieCollection ? 'movie-aspect' : ''}">
+                <img src="${posterUrl}" alt="${ep.title}" loading="lazy" class="ep-poster-img" onerror="this.src='${activeShow.banner}'" />
+                ${ratingText ? `<span class="ep-rating-badge">${ratingText}</span>` : ''}
+                ${yearText ? `<span class="ep-year-badge">${yearText}</span>` : ''}
+              </div>
+            ` : ''}
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+              <span class="ep-badge">${ep.movie_number ? `Movie #${ep.movie_number}` : `EP ${ep.episode_number || '•'}`}</span>
+              <span style="font-size: 0.75rem; color: #4caf50; font-weight: 600;">⚡ Stream Ready</span>
             </div>
-            <div class="ep-title">${ep.title || ep.filename}</div>
+            <div class="ep-title">${ep.tmdb_title || ep.title || ep.filename}</div>
+            ${ep.overview ? `<p style="font-size: 0.78rem; color: #aaa; margin-top: 0.3rem; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${ep.overview}</p>` : ''}
           </div>
-          <div class="ep-meta">
+          <div class="ep-meta" style="margin-top: 0.4rem;">
             <span>💾 ${ep.size_mb ? ep.size_mb + ' MB' : 'Full HD'}</span>
-            <span style="color: var(--primary); font-weight: 600;">▶ Play</span>
+            <span style="color: var(--primary); font-weight: 700;">▶ Play</span>
           </div>
         `;
         episodesGrid.appendChild(card);

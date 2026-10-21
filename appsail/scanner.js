@@ -1,6 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 const catalyst = require('zcatalyst-sdk-node');
+const { CANONICAL_SHOWS_TMDB, enrichTitle } = require('./tmdb');
 
 function cleanTitle(filename) {
   let name = filename.replace(/\.(mp4|mkv|avi|webm)$/i, '');
@@ -17,46 +18,8 @@ function extractEpNumber(title, filename) {
   return match ? parseInt(match[1], 10) : null;
 }
 
-const SHOW_METADATA = {
-  'doraemon-movies': {
-    title: 'Doraemon Theatrical Movies',
-    description: 'High-definition 1080p/720p Japanese anime theatrical adventures of Doraemon and Nobita spanning 1980 to 2024.',
-    banner: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=1600&h=600&fit=crop'
-  },
-  'doraemon': {
-    title: 'Doraemon (TV Series)',
-    description: 'The beloved classic anime series following Doraemon, a robotic cat from the 22nd century, and Nobita Nobi across 21 seasons.',
-    banner: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=1600&h=600&fit=crop'
-  },
-  'shinchan': {
-    title: 'Crayon Shin-chan',
-    description: 'The hilarious daily misadventures of five-year-old Shinnosuke "Shin" Nohara, his family, and friends in Kasukabe.',
-    banner: 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=1600&h=600&fit=crop'
-  },
-  'pokemon': {
-    title: 'Pokémon (The Complete Series)',
-    description: 'Join Ash Ketchum and Pikachu on their epic journey across Kanto, Johto, Hoenn, Sinnoh, Unova, Kalos, and Alola to become Pokémon Masters.',
-    banner: 'https://images.unsplash.com/photo-1613771404784-3a5686aa2be3?w=1600&h=600&fit=crop'
-  },
-  'luckyman': {
-    title: 'Lucky Man (1994)',
-    description: 'Tottemo! Luckyman — the cosmic adventures of the luckiest superhero in the universe, battling villains with sheer luck.',
-    banner: 'https://images.unsplash.com/photo-1563089145-599997674d42?w=1600&h=600&fit=crop'
-  },
-  'chhota-bheem': {
-    title: 'Chhota Bheem',
-    description: 'The courageous adventures of young hero Bheem and his loyal friends defending the kingdom of Dholakpur.',
-    banner: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=1600&h=600&fit=crop'
-  },
-  'oggy': {
-    title: 'Oggy and the Cockroaches',
-    description: 'The slapstick comic rivalry between Oggy, a lazy cat, and the three pesky cockroaches Joey, Dee Dee, and Marky.',
-    banner: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=1600&h=600&fit=crop'
-  }
-};
-
 /**
- * Scan all objects in Zoho Stratus bucket 'stream' and build the full catalog structure
+ * Scan all objects in Zoho Stratus bucket 'stream' and build the full catalog structure enriched with TMDB
  * @param {object} req - Express request object containing Catalyst headers
  * @returns {Promise<{ shows: Array }>}
  */
@@ -96,19 +59,24 @@ async function scanBucketCatalog(req) {
 
   function getOrCreateShow(id, defaultTitle, defaultDesc, defaultBanner) {
     if (!showsMap.has(id)) {
-      const meta = SHOW_METADATA[id] || {};
+      const meta = CANONICAL_SHOWS_TMDB[id] || {};
       showsMap.set(id, {
         id: id,
         title: meta.title || defaultTitle || id,
         description: meta.description || defaultDesc || `Watch ${defaultTitle || id} in HD on Cartoon Stream.`,
-        banner: meta.banner || defaultBanner || 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=1600&h=600&fit=crop',
+        banner: meta.banner || defaultBanner || 'https://image.tmdb.org/t/p/w1280/c2oiRa7V3bQzof4wVGzLXtWJ5QU.jpg',
+        poster: meta.poster || 'https://image.tmdb.org/t/p/w500/9ZN1P32SHviL3SV51qLivxycvcx.jpg',
+        rating: meta.rating || 8.0,
+        year: meta.year || 'Classic',
+        genres: meta.genres || ['Animation', 'Comedy'],
         seasons: {}
       });
     }
     return showsMap.get(id);
   }
 
-  allObjects.forEach(item => {
+  // Process all files
+  for (const item of allObjects) {
     const k = item.key;
     const filename = path.basename(k);
     const clean = cleanTitle(filename);
@@ -128,6 +96,22 @@ async function scanBucketCatalog(req) {
     if (k.startsWith('Doraemon/Movies/')) {
       const show = getOrCreateShow('doraemon-movies', 'Doraemon Theatrical Movies');
       if (!show.seasons['Movies']) show.seasons['Movies'] = [];
+
+      // Enrich movie with TMDB poster, backdrop, synopsis, and rating
+      try {
+        const tmdbMeta = await enrichTitle(clean, filename, true);
+        if (tmdbMeta) {
+          epObj.tmdb_title = tmdbMeta.title;
+          epObj.poster = tmdbMeta.poster;
+          epObj.backdrop = tmdbMeta.backdrop;
+          epObj.overview = tmdbMeta.overview;
+          epObj.rating = tmdbMeta.rating;
+          epObj.year = tmdbMeta.year;
+        }
+      } catch (tmdbErr) {
+        // Fallback gracefully without breaking scan
+      }
+
       show.seasons['Movies'].push(epObj);
     } else if (k.startsWith('Doraemon/')) {
       const show = getOrCreateShow('doraemon', 'Doraemon (TV Series)');
@@ -177,7 +161,7 @@ async function scanBucketCatalog(req) {
         show.seasons[season].push(epObj);
       }
     }
-  });
+  }
 
   // Sort episodes in each season
   showsMap.forEach(show => {
