@@ -63,6 +63,8 @@ jobs:
         run: |
           git config user.name "Cloud Migration Bot"
           git config user.email "bot@users.noreply.github.com"
-          git pull --rebase || true
-          git add zoho_manifest*.json luckyman_packs.json
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Update zoho_manifest_luckyman_part_${{ matrix.part }} [skip ci]" && git push) || true
+          git add zoho_manifest*.json luckyman_packs.json || true
+          git diff --quiet && git diff --staged --quiet || git commit -m "Update zoho_manifest_luckyman_part_${{ matrix.part }} [skip ci]" || true
+          for i in 1 2 3 4 5; do
+            git pull --rebase origin main && git push origin main && break || sleep 3
+          done

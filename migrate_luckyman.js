@@ -153,21 +153,10 @@ async function processPack(pack) {
   const zipStat = fs.statSync(zipPath);
   console.log(`[✓] ZIP Downloaded: ${formatBytes(zipStat.size)}`);
 
-  // 2. Extract using Python zipfile
+  // 2. Extract using standalone Python script
   console.log(`\n📂 Extracting loose video files...`);
-  const extractScript = `
-import zipfile, os
-with zipfile.ZipFile(r"${zipPath}", 'r') as z:
-    for member in z.infolist():
-        if member.filename.lower().endswith(('.mkv', '.mp4')):
-            filename = os.path.basename(member.filename)
-            if filename:
-                target_path = os.path.join(r"${workDir}", filename)
-                print(f"  - Extracting: {filename}")
-                with z.open(member) as source, open(target_path, "wb") as target:
-                    target.write(source.read())
-`;
-  execSync(`python -c "${extractScript.replace(/\n/g, ' ')}"`, { stdio: 'inherit' });
+  const extractPy = path.join(__dirname, 'extract_pack.py');
+  execSync(`python "${extractPy}" "${zipPath}" "${workDir}"`, { stdio: 'inherit' });
 
   // 3. Delete ZIP to reclaim disk space immediately
   console.log(`\n🧹 Removing ZIP file to free disk space...`);
@@ -229,7 +218,10 @@ async function run() {
 }
 
 if (require.main === module) {
-  run().catch(console.error);
+  run().catch(err => {
+    console.error('Fatal error during migration:', err);
+    process.exit(1);
+  });
 }
 
 module.exports = { run, processPack };
