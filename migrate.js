@@ -281,7 +281,7 @@ function computeOrganizedKey(item, options = {}) {
   const lower = raw.toLowerCase();
 
   if (options.targetKey) return options.targetKey;
-  if (options.prefix === 'movies' || lower.includes('doraemon_movie') || lower.includes('the birth of doraemon') || lower.includes('stand by me')) {
+  if (options.prefix === 'Doraemon/Movies' || options.prefix === 'movies' || lower.includes('doraemon_movie') || lower.includes('the birth of doraemon') || lower.includes('stand by me') || lower.includes('doraemon -')) {
     return `Doraemon/Movies/${safe}`;
   }
   if (lower.includes('pokemon') || (item.relative_path && item.relative_path.toLowerCase().includes('pokemon'))) {
@@ -326,7 +326,7 @@ async function migrateFile(item, options = {}) {
 
   // Single-audio movies already have standard Hindi AAC/MP3: stream directly!
   // Dual-audio classic movies (Movie 01-40): Remux Track 0:2 (Hindi Dub) to AAC.
-  const shouldConvertAudio = isMovie && !isSingleAudioMovie;
+  const shouldConvertAudio = !options.direct && isMovie && !isSingleAudioMovie;
 
   console.log(`\n======================================================`);
   console.log(`🚀 Starting Cloud Transfer: ${rawFilename}`);
@@ -832,7 +832,7 @@ async function run() {
     for (let i = 0; i < batchMovies.length; i++) {
       console.log(`\n[${i + 1}/${batchMovies.length}] Movie: ${batchMovies[i].title || batchMovies[i].filename}`);
       try {
-        await migrateMovie(batchMovies[i]);
+        await migrateFile(batchMovies[i], { prefix: "Doraemon/Movies", direct: true, isMovie: true });
       } catch (err) {
         console.error(`❌ Error on movie:`, err.message);
       }
@@ -846,7 +846,7 @@ async function run() {
     for (let i = 0; i < movies.length; i++) {
       console.log(`\n[${i + 1}/${movies.length}] Processing Movie: ${movies[i].title || movies[i].filename}`);
       try {
-        await migrateMovie(movies[i]);
+        await migrateFile(movies[i], { prefix: "Doraemon/Movies", direct: true, isMovie: true });
       } catch (err) {
         console.error(`❌ Error on movie ${i + 1}:`, err.message);
       }
