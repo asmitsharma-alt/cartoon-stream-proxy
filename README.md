@@ -1,148 +1,95 @@
-# ⚡ StreamVault — High-Performance Google Drive Video Streaming Proxy
+# 🎬 Cartoon Stream Server (Netflix Edition)
 
-A lightweight, high-performance streaming proxy and player built in Native Node.js. It streams media directly from Google Drive into custom video players (HTML5 `<video>`, Video.js, Plyr, React Native, or Flutter) with **< 1-second instant start**, **HTTP Range (seeking) support**, and **on-the-fly multi-audio track switching** (Hindi, Japanese, etc.).
+> **High-Performance Anime & Cartoon Streaming Engine with Dynamic Multi-Audio Switching on Zoho Catalyst AppSail & Zoho Stratus**
 
-Optimized specifically for **Render Free Tier** (runs under 80 MB RAM with zero video re-encoding CPU overhead).
-
----
-
-## 🌟 Key Features
-
-* **⚡ Instant Playback (< 1 second)**: Caches the initial `512 KB–1 MB` head chunk of media files in server RAM, serving initial video headers and frames in **< 15ms**.
-* **🎧 Multi-Audio Switching**: Movies with dual/multi-audio tracks (e.g. Japanese EAC-3 & Hindi MP3) can be toggled on the fly in **~0.5 seconds** while keeping your exact playback position.
-* **⏩ HTTP 206 Range Seeking**: Full support for `Range: bytes=...` requests. Fast-forwarding, rewinding, and scrubbing work seamlessly.
-* **🌐 Universal CORS**: Access `/stream/:fileId` from any external domain, mobile app, or frontend player.
-* **📺 Dynamic Auto-Catalog**: Automatically discovers and indexes all `*_Google_Drive_Links.json` files in the root folder (currently indexing **2,439 titles** across Doraemon, Shinchan, Chhota Bheem, Oggy, and Doraemon Movies).
-* **☁️ Render Free Tier Ready**:
-  * Native Node.js (no Docker required).
-  * `< 80 MB` RAM footprint.
-  * `/api/health` endpoint for free 24/7 uptime pingers to eliminate Render's 15-minute sleep.
+[![Live Server](https://img.shields.io/badge/Live%20Server-Online%20⚡-brightgreen)](https://cartoon-server-50046883835.development.catalystappsail.in)
+[![API & AI Docs](https://img.shields.io/badge/Docs-Interactive%20Sandbox-blue)](https://cartoon-server-50046883835.development.catalystappsail.in/docs)
+[![LLM Discovery](https://img.shields.io/badge/llms.txt-Standard%20Ready-purple)](https://cartoon-server-50046883835.development.catalystappsail.in/llms.txt)
+[![OpenAPI 3.0](https://img.shields.io/badge/OpenAPI-3.0.3%20Spec-orange)](https://cartoon-server-50046883835.development.catalystappsail.in/openapi.json)
 
 ---
 
-## 🚀 Quick Start (Local Setup)
+## 🌟 Quick Links
 
-### 1. Install Dependencies
+* 🌐 **Live Web Player**: [https://cartoon-server-50046883835.development.catalystappsail.in](https://cartoon-server-50046883835.development.catalystappsail.in)
+* 📖 **Interactive API & AI Docs**: [https://cartoon-server-50046883835.development.catalystappsail.in/docs](https://cartoon-server-50046883835.development.catalystappsail.in/docs)
+* 🤖 **Standard LLM System Context**: [https://cartoon-server-50046883835.development.catalystappsail.in/llms.txt](https://cartoon-server-50046883835.development.catalystappsail.in/llms.txt)
+* 📑 **Comprehensive Technical Guide**: [SERVER_GUIDE.md](SERVER_GUIDE.md)
+
+---
+
+## 🚀 Key Highlights
+
+* **⚡ Instant Playback (< 1 second)**: Direct HTTP 206 Byte-Range streaming from Zoho Stratus cloud storage.
+* **🎧 On-The-Fly Multi-Audio Switching**: Embedded static FFmpeg 7.0.2 extracts and transmuxes alternate audio streams (Hindi, Japanese, Tamil, Telugu, English) on the fly without re-encoding video bitstreams (`-c:v copy -c:a aac`).
+* **⏩ Advanced Player Controls**:
+  * Interactive timeline scrubber with timestamp hover tooltips.
+  * Direct jump-to-timestamp box (accepts `MM:SS` or `HH:MM:SS`).
+  * Quick-skip buttons: `⏪ -10s`, `⏩ +10s`, and `⏭️ Skip Intro (+85s)`.
+  * Keyboard shortcuts (<kbd>Space</kbd>, <kbd>J</kbd>/<kbd>L</kbd>, <kbd>M</kbd>, <kbd>F</kbd>, <kbd>0-9</kbd>).
+* **📚 Massive Media Library**: **1,237 titles** indexed in-memory, including **all 40 Doraemon Theatrical Movies (1080p/720p)**, Doraemon TV seasons, Shinchan, and Pokemon.
+* **🤖 Autonomous AI Integration**: Standard `/llms.txt` and `/openapi.json` specifications for ChatGPT, Claude, Gemini, Hermes, and autonomous scrapers.
+
+---
+
+## 🏗️ Architecture Overview
+
+```
+Zoho Stratus Object Storage (cartoon-storage)
+  │ (Direct Range Requests & Media Blobs)
+  ▼
+Zoho Catalyst AppSail (Node.js 20 persistent container)
+  ├── catalog.json (1,237 indexed titles in RAM)
+  ├── bin/ffmpeg & bin/ffprobe v7.0.2 (Static zero-copy transmuxing)
+  ├── Express API (/api/catalog, /api/tracks, /api/stream, /api/diag)
+  └── Static Web Player (Netflix Dark Obsidian UI)
+  │
+  ▼
+Universal Clients: Web Browser / Mobile Apps / VLC / AI Agents
+```
+
+For full architectural deep-dives, see **[SERVER_GUIDE.md](SERVER_GUIDE.md)**.
+
+---
+
+## 🔌 API Endpoints Summary
+
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/api/catalog` | `GET` | List all shows, season counts, and banner artwork. |
+| `/api/show/:id` | `GET` | Detailed season-by-season episode list with storage keys. |
+| `/api/tracks?key=...` | `GET` | Probe container via `ffprobe` for audio languages and duration. |
+| `/api/stream?key=...&audio=...&t=...` | `GET` | Dual-mode video stream (HTTP 206 range OR FFmpeg transmux). |
+| `/api/diag` | `GET` | Server diagnostics, Node version, and FFmpeg verification. |
+| `/api/health` | `GET` | Service uptime and loaded catalog size. |
+| `/docs` | `GET` | Interactive testing console & developer documentation. |
+| `/llms.txt` | `GET` | AI agent system prompt & API discovery specs. |
+| `/openapi.json` | `GET` | Complete OpenAPI 3.0.3 formal schema. |
+
+---
+
+## 🛠️ Local Setup
+
 ```bash
+# 1. Clone repository
+git clone https://github.com/asmitsharma-alt/cartoon-stream-proxy.git
+cd cartoon-stream-proxy/appsail
+
+# 2. Install dependencies
 npm install
-```
 
-### 2. Configure Service Account
-Place your Google Cloud Service Account JSON file in the project root:
-```
-scoop-plus-b8ec77cef48d.json
-```
-*(The server auto-detects any `*service_account*.json` file in the directory).*
-
-### 3. Start the Server
-```bash
+# 3. Start local server
 npm start
 ```
-Open **[http://localhost:3000](http://localhost:3000)** in your browser to browse and play titles immediately!
+Open [http://localhost:9000](http://localhost:9000) to view the player.
 
 ---
 
-## ☁️ 1-Click Deployment to Render (Free Tier)
+## ☁️ Deployment
 
-### Step 1: Push Code to GitHub
-Ensure you have created a repository on GitHub and pushed your code:
+Deployed to Zoho Catalyst AppSail via the official CLI:
 ```bash
-git add .
-git commit -m "Initial commit of streaming proxy"
-git push -u origin main
-```
-*(Note: Your `.gitignore` automatically prevents your credentials JSON from being pushed publicly).*
-
-### Step 2: Create a Web Service on Render
-1. Log in to [Render.com](https://render.com) and click **New +** &rarr; **Web Service**.
-2. Connect your GitHub repository.
-3. Configure the settings:
-   * **Runtime**: `Node`
-   * **Build Command**: `npm install`
-   * **Start Command**: `npm start`
-   * **Instance Type**: `Free`
-
-### Step 3: Set Environment Variables on Render
-Under the **Environment** tab on Render, add:
-* **Key**: `GOOGLE_CREDENTIALS`
-* **Value**: *Paste the entire JSON contents of `scoop-plus-b8ec77cef48d.json`*.
-
-Click **Save & Deploy**!
-
-### Step 4: Keep It Awake 24/7 (Prevent 15-min Sleep)
-1. Go to [Cron-job.org](https://cron-job.org) or [UptimeRobot](https://uptimerobot.com) (100% free).
-2. Create a new monitor that pings your health URL every **10 minutes**:
-   ```
-   https://your-service-name.onrender.com/api/health
-   ```
-3. Your server will stay active 24/7 with zero cold starts!
-
----
-
-## 🔌 API Endpoints
-
-### 1. Video Stream
-* **`GET /stream/:fileId`**
-  * Direct streaming endpoint with full HTTP Range (206) support.
-  * **Query Parameters**:
-    * `audio`: *(optional)* Audio track index for multi-audio movies (e.g. `?audio=1` for Japanese, `?audio=2` for Hindi).
-    * `startTime`: *(optional)* Seek position in seconds when switching audio (e.g. `?startTime=540`).
-
-### 2. Media Information & Audio Tracks
-* **`GET /api/info/:fileId`**
-  * Probes video and audio streams via ffprobe:
-  ```json
-  {
-    "file_id": "1vT-ZaTWBFqzpcxxQHsbkHfbHtcC-vMnA",
-    "video": { "index": 0, "codec": "h264" },
-    "audio_tracks": [
-      { "index": 1, "codec": "eac3", "language": "jpn", "label": "Japanese (EAC3)" },
-      { "index": 2, "codec": "mp3", "language": "hin", "label": "Hindi (MP3)" }
-    ]
-  }
-  ```
-
-### 3. Catalogs
-* **`GET /api/shows`**: List all available shows and item counts.
-* **`GET /api/shows/:showKey`**: Paginated titles for a show (`?page=1&limit=50&season=Season%2001&search=bheem`).
-* **`GET /api/item/:fileId`**: Get metadata for a specific title.
-
-### 4. Health Check
-* **`GET /api/health`**: Uptime, memory usage, and title counts.
-
----
-
-## 💻 How to Use in External Players & Apps
-
-### HTML5 `<video>`
-```html
-<video controls playsinline preload="auto" src="https://your-domain.com/stream/FILE_ID"></video>
-```
-
-### React / Next.js
-```jsx
-export function Player({ fileId }) {
-  return (
-    <video
-      controls
-      playsInline
-      preload="auto"
-      src={`https://your-domain.com/stream/${fileId}`}
-    />
-  );
-}
-```
-
-### Video.js / Plyr
-```javascript
-const player = new Plyr('#player');
-player.source = {
-  type: 'video',
-  sources: [{
-    src: 'https://your-domain.com/stream/FILE_ID',
-    type: 'video/mp4'
-  }]
-};
+catalyst deploy appsail --name cartoon-server --build-path appsail --stack node20 --command "node app.js"
 ```
 
 ---
