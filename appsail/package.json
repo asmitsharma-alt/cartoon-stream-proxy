@@ -1,0 +1,14 @@
+{
+  "name": "cartoon-stream-server",
+  "version": "1.0.0",
+  "description": "High performance video streaming proxy and Netflix-style web player on Zoho Catalyst AppSail",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "zcatalyst-sdk-node": "^3.4.0"
+  }
+}

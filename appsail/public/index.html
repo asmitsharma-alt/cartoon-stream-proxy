@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cartoon Stream - Netflix Edition</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #141414;
+      --card-bg: #1f1f1f;
+      --hover-bg: #2a2a2a;
+      --primary: #E50914;
+      --text: #ffffff;
+      --text-muted: #aaaaaa;
+      --border: #333333;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      background: rgba(20, 20, 20, 0.95);
+      backdrop-filter: blur(10px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: var(--primary);
+      text-decoration: none;
+    }
+    .badge {
+      font-size: 0.75rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      background: #333;
+      color: #fff;
+      font-weight: 600;
+    }
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 1.5rem 2rem;
+      width: 100%;
+      flex: 1;
+    }
+    /* Player Section */
+    .player-section {
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 2rem;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+      border: 1px solid var(--border);
+    }
+    .video-wrapper {
+      position: relative;
+      width: 100%;
+      padding-top: 56.25%; /* 16:9 Aspect Ratio */
+      background: #000;
+    }
+    video {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+    .player-controls-bar {
+      padding: 1rem 1.5rem;
+      background: #111;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      border-top: 1px solid var(--border);
+    }
+    .now-playing {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+    .now-playing h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
+    .now-playing p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+    .control-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+    .btn {
+      background: #2a2a2a;
+      color: #fff;
+      border: 1px solid var(--border);
+      padding: 0.5rem 0.9rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: all 0.2s ease;
+    }
+    .btn:hover {
+      background: #3a3a3a;
+      border-color: #555;
+    }
+    .btn-primary {
+      background: var(--primary);
+      border-color: var(--primary);
+    }
+    .btn-primary:hover {
+      background: #b80710;
+    }
+    select {
+      background: #2a2a2a;
+      color: #fff;
+      border: 1px solid var(--border);
+      padding: 0.5rem 0.8rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    /* Tabs & Filters */
+    .tabs {
+      display: flex;
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 1rem;
+      overflow-x: auto;
+    }
+    .tab {
+      padding: 0.6rem 1.2rem;
+      border-radius: 20px;
+      background: var(--card-bg);
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 600;
+      border: 1px solid transparent;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+    .tab.active {
+      background: #fff;
+      color: #000;
+      border-color: #fff;
+    }
+    .filter-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+    .search-box {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      padding: 0.6rem 1rem;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 0.9rem;
+      width: 300px;
+      max-width: 100%;
+    }
+    /* Grid */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 1.25rem;
+    }
+    .ep-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 0.75rem;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .ep-card:hover {
+      transform: translateY(-3px);
+      border-color: var(--primary);
+      background: var(--hover-bg);
+    }
+    .ep-card.playing {
+      border-color: var(--primary);
+      background: rgba(229, 9, 20, 0.1);
+    }
+    .ep-badge {
+      font-size: 0.75rem;
+      background: #333;
+      padding: 0.2rem 0.4rem;
+      border-radius: 4px;
+      display: inline-block;
+      color: #aaa;
+    }
+    .ep-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      line-height: 1.3;
+      color: #fff;
+      word-break: break-word;
+    }
+    .ep-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <a href="/" class="brand">
+      <span>🍿 CARTOON STREAM</span>
+      <span class="badge">NETFLIX EDITION</span>
+    </a>
+    <div id="status-pill" class="badge" style="background: #1b5e20;">⚡ ONLINE</div>
+  </header>
+
+  <main class="container">
+
+    <!-- VIDEO PLAYER COMPONENT -->
+    <section class="player-section" id="player-container">
+      <div class="video-wrapper">
+        <video id="video-element" controls preload="metadata" playsinline></video>
+      </div>
+      <div class="player-controls-bar">
+        <div class="now-playing">
+          <h2 id="player-title">Select an Episode to Play</h2>
+          <p id="player-subtitle">Zoho Catalyst Stratus • Instant Range Seeking • Multi-Audio Ready</p>
+        </div>
+        <div class="control-actions">
+          <!-- Language Selector -->
+          <label style="font-size: 0.8rem; color: #aaa; font-weight: 600;">Audio Language:</label>
+          <select id="audio-select">
+            <option value="0">Detecting audio...</option>
+          </select>
+
+          <!-- Quick Navigation Actions -->
+          <button class="btn" id="btn-back-10">⏮️ -10s</button>
+          <button class="btn" id="btn-fwd-10">+10s ⏭️</button>
+          <button class="btn" id="btn-skip-intro">⏭️ Skip Intro (+90s)</button>
+          <button class="btn btn-primary" id="btn-next-ep">Next Episode ⏭️</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- SHOW SELECTOR TABS -->
+    <div class="tabs" id="show-tabs"></div>
+
+    <!-- FILTER BAR -->
+    <div class="filter-bar">
+      <div style="display: flex; align-items: center; gap: 0.5rem;">
+        <label style="font-size: 0.9rem; color: #aaa;">Season:</label>
+        <select id="season-select"></select>
+      </div>
+      <input type="text" class="search-box" id="search-input" placeholder="🔍 Search episode by title or number...">
+    </div>
+
+    <!-- EPISODES GRID -->
+    <div class="grid" id="episodes-grid"></div>
+
+  </main>
+
+  <script>
+    let currentCatalog = null;
+    let activeShow = null;
+    let activeSeason = null;
+    let activeEpisode = null;
+    let currentEpisodesList = [];
+    let currentAudioIndex = 0;
+
+    const video = document.getElementById('video-element');
+    const playerTitle = document.getElementById('player-title');
+    const playerSubtitle = document.getElementById('player-subtitle');
+    const showTabsContainer = document.getElementById('show-tabs');
+    const seasonSelect = document.getElementById('season-select');
+    const searchInput = document.getElementById('search-input');
+    const episodesGrid = document.getElementById('episodes-grid');
+    const audioSelect = document.getElementById('audio-select');
+    const btnBack10 = document.getElementById('btn-back-10');
+    const btnFwd10 = document.getElementById('btn-fwd-10');
+    const btnSkipIntro = document.getElementById('btn-skip-intro');
+    const btnNextEp = document.getElementById('btn-next-ep');
+
+    // 1. Fetch Full Catalog from AppSail API
+    async function loadCatalog() {
+      try {
+        const res = await fetch('/api/catalog');
+        const data = await res.json();
+        currentCatalog = data;
+
+        // Render Tabs
+        showTabsContainer.innerHTML = '';
+        data.shows.forEach((show, idx) => {
+          const tab = document.createElement('div');
+          tab.className = `tab ${idx === 0 ? 'active' : ''}`;
+          tab.textContent = show.title;
+          tab.onclick = () => selectShow(show.id);
+          showTabsContainer.appendChild(tab);
+        });
+
+        // Default to first show
+        if (data.shows.length > 0) {
+          selectShow(data.shows[0].id);
+        }
+      } catch (err) {
+        console.error('Failed to load catalog:', err);
+      }
+    }
+
+    // 2. Select Show and Load Seasons
+    async function selectShow(showId) {
+      document.querySelectorAll('.tab').forEach(t => {
+        t.classList.toggle('active', t.textContent.includes(showId) || (currentCatalog.shows.find(s => s.id === showId && t.textContent === s.title)));
+      });
+
+      const res = await fetch(`/api/show/${showId}`);
+      activeShow = await res.json();
+
+      // Populate Season Dropdown
+      const seasonKeys = Object.keys(activeShow.seasons);
+      seasonSelect.innerHTML = '';
+      seasonKeys.forEach(sName => {
+        const opt = document.createElement('option');
+        opt.value = sName;
+        opt.textContent = `${sName} (${activeShow.seasons[sName].length} items)`;
+        seasonSelect.appendChild(opt);
+      });
+
+      if (seasonKeys.length > 0) {
+        selectSeason(seasonKeys[0]);
+      }
+    }
+
+    // 3. Select Season & Render Episodes
+    function selectSeason(seasonName) {
+      activeSeason = seasonName;
+      currentEpisodesList = activeShow.seasons[seasonName] || [];
+      renderEpisodes(currentEpisodesList);
+    }
+
+    // 4. Render Grid
+    function renderEpisodes(episodes) {
+      episodesGrid.innerHTML = '';
+      if (episodes.length === 0) {
+        episodesGrid.innerHTML = '<div style="color: #888; grid-column: 1/-1;">No episodes found.</div>';
+        return;
+      }
+
+      episodes.forEach(ep => {
+        const card = document.createElement('div');
+        card.className = `ep-card ${activeEpisode && activeEpisode.id === ep.id ? 'playing' : ''}`;
+        card.onclick = () => playEpisode(ep);
+
+        card.innerHTML = `
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+              <span class="ep-badge">EP ${ep.episode_number || ep.movie_number || '•'}</span>
+              <span style="font-size: 0.75rem; color: #4caf50;">⚡ Stream Ready</span>
+            </div>
+            <div class="ep-title">${ep.title || ep.filename}</div>
+          </div>
+          <div class="ep-meta">
+            <span>💾 ${ep.size_mb ? ep.size_mb + ' MB' : 'Full HD'}</span>
+            <span style="color: var(--primary); font-weight: 600;">▶ Play</span>
+          </div>
+        `;
+        episodesGrid.appendChild(card);
+      });
+    }
+
+    // 5. Fetch & Populate Real Audio Tracks for Active Episode
+    async function updateAudioTracks(ep) {
+      audioSelect.innerHTML = '<option value="0">Detecting audio...</option>';
+      audioSelect.disabled = true;
+
+      try {
+        const res = await fetch(`/api/tracks?key=${encodeURIComponent(ep.key)}`);
+        const data = await res.json();
+        audioSelect.innerHTML = '';
+
+        if (data.audioTracks && data.audioTracks.length > 0) {
+          data.audioTracks.forEach(t => {
+            const opt = document.createElement('option');
+            opt.value = t.index;
+            opt.textContent = t.label;
+            audioSelect.appendChild(opt);
+          });
+          audioSelect.value = String(currentAudioIndex);
+          audioSelect.disabled = data.audioTracks.length <= 1;
+
+          if (data.audioTracks.length > 1) {
+            playerSubtitle.textContent = `Streaming from Zoho Stratus • ⚡ ${data.audioTracks.length} Audio Tracks Available`;
+          }
+        } else {
+          audioSelect.innerHTML = '<option value="0">🔊 Default Audio</option>';
+          audioSelect.disabled = true;
+        }
+      } catch (err) {
+        console.warn('Track detection failed:', err);
+        audioSelect.innerHTML = '<option value="0">🔊 Default Audio</option>';
+        audioSelect.disabled = true;
+      }
+    }
+
+    // 6. Play Episode Function
+    function playEpisode(ep, targetTime = 0, audioIdx = 0) {
+      activeEpisode = ep;
+      currentAudioIndex = audioIdx;
+
+      playerTitle.textContent = `${activeShow.title} - ${ep.title}`;
+      playerSubtitle.textContent = `Loading from Zoho Stratus • Key: ${ep.key}`;
+
+      // Update real available audio tracks
+      updateAudioTracks(ep);
+
+      // Construct streaming URL: default to direct Range stream, use &audio= if audio track > 0
+      let streamUrl = `/api/stream?key=${encodeURIComponent(ep.key)}`;
+      if (currentAudioIndex > 0) {
+        streamUrl += `&audio=${currentAudioIndex}`;
+      }
+      if (targetTime > 0) {
+        streamUrl += `&t=${targetTime}`;
+      }
+
+      video.src = streamUrl;
+      video.load();
+      video.play().catch(() => {});
+
+      // Scroll to player smoothly
+      document.getElementById('player-container').scrollIntoView({ behavior: 'smooth' });
+
+      // Update UI active card
+      renderEpisodes(currentEpisodesList);
+    }
+
+    // 7. Interactive Audio Language Switcher
+    audioSelect.onchange = (e) => {
+      if (!activeEpisode) return;
+      const newAudioIdx = parseInt(e.target.value, 10);
+      currentAudioIndex = newAudioIdx;
+      const curTime = Math.floor(video.currentTime || 0);
+      const isPaused = video.paused;
+      const selectedName = e.target.options[e.target.selectedIndex].text;
+
+      playerSubtitle.textContent = `⚡ Switching audio track to ${selectedName}...`;
+
+      // Reload stream dynamically with chosen audio track at current timestamp
+      const newSrc = `/api/stream?key=${encodeURIComponent(activeEpisode.key)}&audio=${newAudioIdx}&t=${curTime}`;
+      video.src = newSrc;
+      video.load();
+
+      video.onloadeddata = () => {
+        if (!isPaused) {
+          video.play().catch(() => {});
+        }
+        playerSubtitle.textContent = `Streaming with ${selectedName} • Active Episode: ${activeEpisode.title}`;
+        video.onloadeddata = null;
+      };
+    };
+
+    // Navigation and Seeking Controls
+    seasonSelect.onchange = (e) => selectSeason(e.target.value);
+
+    searchInput.oninput = (e) => {
+      const q = e.target.value.toLowerCase();
+      const filtered = currentEpisodesList.filter(ep => 
+        (ep.title && ep.title.toLowerCase().includes(q)) || 
+        (ep.filename && ep.filename.toLowerCase().includes(q)) ||
+        String(ep.episode_number).includes(q)
+      );
+      renderEpisodes(filtered);
+    };
+
+    function seekRelative(seconds) {
+      if (!video) return;
+      video.currentTime = Math.max(0, (video.currentTime || 0) + seconds);
+    }
+
+    btnBack10.onclick = () => seekRelative(-10);
+    btnFwd10.onclick = () => seekRelative(10);
+    btnSkipIntro.onclick = () => seekRelative(90);
+
+    btnNextEp.onclick = () => {
+      if (!activeEpisode) return;
+      const curIdx = currentEpisodesList.findIndex(e => e.id === activeEpisode.id);
+      if (curIdx !== -1 && curIdx + 1 < currentEpisodesList.length) {
+        playEpisode(currentEpisodesList[curIdx + 1]);
+      } else {
+        alert('You reached the last episode of this season!');
+      }
+    };
+
+    // Auto-advance to next episode when ended
+    video.onended = () => {
+      btnNextEp.click();
+    };
+
+    // Init
+    loadCatalog();
+  </script>
+</body>
+</html>
