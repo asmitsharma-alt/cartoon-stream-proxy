@@ -250,6 +250,44 @@ async function verifyRangePlayback(objectUrl) {
   });
 }
 
+function getOggySeason(item) {
+  const str = (item.relative_path || '') + ' ' + (item.filename || '') + ' ' + (item.title || '');
+  if (/S0?1/i.test(str)) return 'Season 01';
+  if (/S0?2/i.test(str)) return 'Season 02';
+  if (/S0?3/i.test(str)) return 'Season 03';
+  if (/S0?5/i.test(str)) return 'Season 05';
+  return 'Season 01';
+}
+
+function getChhotaBheemFolder(item) {
+  if ((item.relative_path || '').includes('Movies')) return 'Movies & Specials';
+  return 'Classic Episodes';
+}
+
+function computeOrganizedKey(item, options = {}) {
+  const raw = item.filename || item.title || `${item.file_id}.mp4`;
+  const safe = raw.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const lower = raw.toLowerCase();
+
+  if (options.targetKey) return options.targetKey;
+  if (options.prefix === 'movies' || lower.includes('doraemon_movie') || lower.includes('the birth of doraemon') || lower.includes('stand by me')) {
+    return `Doraemon/Movies/${safe}`;
+  }
+  if (lower.includes('shinchan')) {
+    return `Shinchan/${item.season || 'Season 01'}/${safe}`;
+  }
+  if (lower.includes('doraemon') || (item.season && item.season.startsWith('Season'))) {
+    return `Doraemon/${item.season || 'Season 01'}/${safe}`;
+  }
+  if (lower.includes('oggy') || (item.relative_path && item.relative_path.toLowerCase().includes('oggy'))) {
+    return `Oggy and the Cockroaches/${getOggySeason(item)}/${safe}`;
+  }
+  if (lower.includes('bheem') || (item.relative_path && item.relative_path.toLowerCase().includes('bheem'))) {
+    return `Chhota Bheem/${getChhotaBheemFolder(item)}/${safe}`;
+  }
+  return options.prefix ? `${options.prefix}/${safe}` : safe;
+}
+
 // ==========================================
 // 4. MIGRATION TRANSFER CORE
 // ==========================================
@@ -258,7 +296,7 @@ async function migrateFile(item, options = {}) {
   const fileId = item.file_id;
   const rawFilename = item.filename || item.title || `${fileId}.mp4`;
   const safeFilename = rawFilename.replace(/[^a-zA-Z0-9._-]/g, '_');
-  const targetKey = options.prefix ? `${options.prefix}/${safeFilename}` : safeFilename;
+  const targetKey = computeOrganizedKey(item, options);
   const isMovie = options.isMovie || options.prefix === 'movies' || rawFilename.toLowerCase().includes('movie');
   const isSingleAudioMovie = rawFilename.includes('2112 The Birth') ||
                              rawFilename.includes('Stand By Me') ||
@@ -276,14 +314,13 @@ async function migrateFile(item, options = {}) {
   console.log(`🎯 Target: ${targetKey}`);
   console.log(`======================================================`);
 
-  // Check if already in manifest & online
-  if (manifest[fileId] && !options.force) {
-    const existingSize = await checkStratusObject(targetKey);
-    if (existingSize) {
-      console.log(`⚡ Already uploaded and verified on Zoho Stratus (${formatBytes(existingSize)})! Skipping.`);
-      console.log(`🔗 URL: ${manifest[fileId].url}`);
-      return manifest[fileId];
-    }
+  // Check if already uploaded and verified at new organized key or legacy key
+  const existingSize = (await checkStratusObject(targetKey)) || (await checkStratusObject(`episodes/${safeFilename}`));
+  if (existingSize && !options.force) {
+    console.log(`⚡ Already uploaded and verified on Zoho Stratus (${formatBytes(existingSize)})! Skipping.`);
+    const publicUrl = `${STRATUS_BASE_URL}/${encodeURI(targetKey)}`;
+    console.log(`🔗 URL: ${publicUrl}`);
+    return { url: publicUrl, size: existingSize };
   }
 
   const zohoToken = await getZohoToken();
@@ -639,7 +676,7 @@ async function migrateMovie(item, options = {}) {
   const fileId = item.file_id;
   const rawFilename = item.filename || item.title || `${fileId}.mp4`;
   const safeFilename = rawFilename.replace(/[^a-zA-Z0-9._-]/g, '_');
-  const targetKey = `movies/${safeFilename}`;
+  const targetKey = `Doraemon/Movies/${safeFilename}`;
   const isSingleAudioMovie = rawFilename.includes('2112 The Birth') ||
                              rawFilename.includes('Stand By Me') ||
                              rawFilename.includes('Sky Utopia') ||
@@ -653,12 +690,11 @@ async function migrateMovie(item, options = {}) {
   console.log(`🎯 Stratus Target: ${targetKey}`);
   console.log(`======================================================`);
 
-  if (manifest[fileId] && !options.force) {
-    const existingSize = await checkStratusObject(targetKey);
-    if (existingSize) {
-      console.log(`⚡ Already uploaded and verified on Zoho Stratus (${formatBytes(existingSize)})! Skipping.`);
-      return manifest[fileId];
-    }
+  const existingSize = (await checkStratusObject(targetKey)) || (await checkStratusObject(`movies/${safeFilename}`));
+  if (existingSize && !options.force) {
+    console.log(`⚡ Already uploaded and verified on Zoho Stratus (${formatBytes(existingSize)})! Skipping.`);
+    const publicUrl = `${STRATUS_BASE_URL}/${encodeURI(targetKey)}`;
+    return { url: publicUrl, size: existingSize };
   }
 
   const tmpDir = process.env.RUNNER_TEMP || require('os').tmpdir();
@@ -887,4 +923,16 @@ async function run() {
   console.log(`❌ Unknown target "${target}". Valid targets: sample-episode, sample-movie, movies-batch-1..5, all-movies, doraemon, shinchan, oggy, chhota-bheem.`);
 }
 
-run().catch(console.error);
+module.exports = {
+  getZohoToken,
+  checkStratusObject,
+  STRATUS_BASE_URL,
+  BUCKET_NAME,
+  migrateMovie,
+  migrateFile,
+  run
+};
+
+if (require.main === module) {
+  run().catch(console.error);
+}
