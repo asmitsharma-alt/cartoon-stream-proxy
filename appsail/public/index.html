@@ -535,12 +535,34 @@
     // 1. Fetch Full Catalog from AppSail API
     let lastCatalogVersion = null;
 
-    async function loadCatalog(maintainShowId) {
+    function showToast(msg) {
+      let toast = document.getElementById('auto-sync-toast');
+      if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'auto-sync-toast';
+        toast.style.cssText = 'position:fixed;bottom:24px;right:24px;background:#FFDE00;color:#000;font-weight:bold;padding:12px 20px;border:2.5px solid #000;box-shadow:4px 4px 0 #000;border-radius:4px;z-index:99999;font-size:14px;transition:opacity 0.3s;';
+        document.body.appendChild(toast);
+      }
+      toast.textContent = msg;
+      toast.style.display = 'block';
+      toast.style.opacity = '1';
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => { toast.style.display = 'none'; }, 300);
+      }, 4000);
+    }
+
+    async function loadCatalog(maintainShowId, maintainSeason) {
       try {
         const res = await fetch('/api/catalog');
         const data = await res.json();
         currentCatalog = data;
         lastCatalogVersion = data.version || lastCatalogVersion;
+
+        const statusPill = document.getElementById('status-pill');
+        if (statusPill && data.total_titles) {
+          statusPill.textContent = `⚡ ONLINE • ${data.total_titles.toLocaleString()} TITLES`;
+        }
 
         // Render Tabs
         showTabsContainer.innerHTML = '';
@@ -555,7 +577,7 @@
         // Maintain current active show or default to first
         const targetShowId = maintainShowId || (data.shows.length > 0 ? data.shows[0].id : null);
         if (targetShowId) {
-          selectShow(targetShowId);
+          selectShow(targetShowId, maintainSeason || activeSeason);
         }
       } catch (err) {
         console.error('Failed to load catalog:', err);
@@ -563,7 +585,7 @@
     }
 
     // 2. Select Show and Load Seasons
-    async function selectShow(showId) {
+    async function selectShow(showId, maintainSeason) {
       document.querySelectorAll('.tab').forEach(t => {
         t.classList.toggle('active', t.textContent.includes(showId) || (currentCatalog.shows.find(s => s.id === showId && t.textContent === s.title)));
       });
@@ -581,8 +603,10 @@
         seasonSelect.appendChild(opt);
       });
 
-      if (seasonKeys.length > 0) {
-        selectSeason(seasonKeys[0]);
+      const targetSeason = (maintainSeason && seasonKeys.includes(maintainSeason)) ? maintainSeason : (seasonKeys.length > 0 ? seasonKeys[0] : null);
+      if (targetSeason) {
+        seasonSelect.value = targetSeason;
+        selectSeason(targetSeason);
       }
     }
 
@@ -882,8 +906,10 @@
         const data = await res.json();
         if (lastCatalogVersion && lastCatalogVersion !== data.version) {
           console.log('[Auto-Sync] 🔄 New catalog detected on server! Updating frontend...');
+          showToast(`⚡ Catalog updated! ${data.total_titles || ''} titles across ${data.shows_count || ''} shows.`);
           const currentShowId = activeShow ? activeShow.id : null;
-          await loadCatalog(currentShowId);
+          const currentSeason = activeSeason;
+          await loadCatalog(currentShowId, currentSeason);
         }
         lastCatalogVersion = data.version;
       } catch (e) {}
@@ -892,7 +918,7 @@
     async function syncCatalogNow() {
       const btn = document.getElementById('sync-btn');
       if (btn) {
-        btn.textContent = '⏳ Scanning...';
+        btn.textContent = '⏳ Scanning Stratus...';
         btn.disabled = true;
       }
       try {
@@ -901,7 +927,9 @@
         console.log('[Manual Sync] Result:', data);
         lastCatalogVersion = data.version;
         const currentShowId = activeShow ? activeShow.id : null;
-        await loadCatalog(currentShowId);
+        const currentSeason = activeSeason;
+        await loadCatalog(currentShowId, currentSeason);
+        showToast(`✅ Synced! Found ${data.total_titles || 3631} titles.`);
         if (btn) btn.textContent = '✅ Synced!';
         setTimeout(() => {
           if (btn) {
@@ -924,8 +952,8 @@
       }
     });
 
-    // Auto-check every 30 seconds in background
-    setInterval(checkCatalogVersion, 30000);
+    // Auto-check every 15 seconds in background
+    setInterval(checkCatalogVersion, 15000);
 
     // Init
     loadCatalog();

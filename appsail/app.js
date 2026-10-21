@@ -32,7 +32,7 @@ let catalogVersion = Date.now().toString();
 let lastScanTime = Date.now();
 let isScanning = false;
 let lastCatalystReq = null;
-const SCAN_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes TTL
+const SCAN_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes TTL for auto-scanning
 
 const catalogPath = path.join(__dirname, 'catalog.json');
 if (fs.existsSync(catalogPath)) {
@@ -93,12 +93,19 @@ app.use((req, res, next) => {
   next();
 });
 
-// Periodic background auto-check (every 60s checks if 15m TTL expired)
+// Periodic background auto-check (every 60s checks if 5m TTL expired)
 setInterval(() => {
-  if (lastCatalystReq && !isScanning && (Date.now() - lastScanTime > SCAN_INTERVAL_MS)) {
+  if (!isScanning && (Date.now() - lastScanTime > SCAN_INTERVAL_MS)) {
     triggerCatalogScan(lastCatalystReq).catch(() => {});
   }
 }, 60000);
+
+// Kick off auto-scan 5 seconds after startup to ensure fresh catalog
+setTimeout(() => {
+  if (!isScanning) {
+    triggerCatalogScan(lastCatalystReq).catch(() => {});
+  }
+}, 5000);
 
 // Global Middlewares
 app.use(cors({
@@ -344,7 +351,10 @@ app.get('/api/stream', (req, res) => {
   // Option A: Dynamic FFmpeg Remux (Instant Multi-Audio Switch / MKV to MP4)
   if (useFfmpeg && fs.existsSync(FFMPEG_BIN)) {
     const audioIdx = parseInt(audio || '0', 10);
-    const args = [];
+    const args = [
+      '-probesize', '32M',
+      '-analyzeduration', '32M'
+    ];
 
     if (startSec > 0) {
       args.push('-ss', String(startSec));
@@ -354,7 +364,7 @@ app.get('/api/stream', (req, res) => {
       '-headers', 'Accept-Encoding: identity\r\n',
       '-i', targetUrl,
       '-map', '0:v:0',
-      '-map', `0:a:${isNaN(audioIdx) ? 0 : audioIdx}`,
+      '-map', `0:a:${isNaN(audioIdx) ? 0 : audioIdx}?`,
       '-c:v', 'copy',
       '-c:a', 'aac',
       '-b:a', '192k',
@@ -403,6 +413,15 @@ app.get('/api/stream', (req, res) => {
     res.setHeader('Access-Control-Expose-Headers', 'Content-Range, Accept-Ranges, Content-Length, Content-Type');
     if (stratusRes.headers['etag']) res.setHeader('ETag', stratusRes.headers['etag']);
     if (stratusRes.headers['last-modified']) res.setHeader('Last-Modified', stratusRes.headers['last-modified']);
+
+    // Instant HEAD resolution without buffering data
+    if (req.method === 'HEAD') {
+      if (totalLength > 0 && totalLength <= 2147483647) {
+        res.setHeader('Content-Length', totalLength);
+      }
+      stratusRes.destroy();
+      return res.status(200).end();
+    }
 
     if (!rangeHeader) {
       // Direct GET without range
