@@ -185,7 +185,7 @@ jobs:
         run: |
           UPLOAD_URL="${{ steps.get_sig.outputs.upload_url }}"
           echo "=== Uploading faststart_output.mp4 to Zoho Stratus ==="
-          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X PUT --upload-file faststart_output.mp4 "$UPLOAD_URL")
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X PUT -H "overwrite: true" -H "Content-Type: video/mp4" --upload-file faststart_output.mp4 "$UPLOAD_URL")
           echo "Stratus Upload Response Status: $HTTP_STATUS"
           if [ "$HTTP_STATUS" -ne 200 ] && [ "$HTTP_STATUS" -ne 201 ]; then
             echo "Upload failed with HTTP status $HTTP_STATUS"
