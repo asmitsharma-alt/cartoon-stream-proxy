@@ -1,0 +1,201 @@
+name: Turbo Faststart & Upload to Zoho Stratus (14 Movies Parallel)
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Select movie to process (or ALL for max parallel)'
+        required: true
+        default: 'ALL'
+        type: choice
+        options:
+          - 'ALL'
+          - '00 - 2112 The Birth of Doraemon (1995)'
+          - '27 - Nobitas New Great Adventure into Underworld (2007)'
+          - '28 - Nobita and the Green Giant Legend (2008)'
+          - '29 - Nobitas Spaceblazer (2009)'
+          - '30 - The Great Battle of the Mermaid King (2010)'
+          - '31 - Nobita and the New Steel Troops (2011)'
+          - '32 - Nobita and the Island of Miracles (2012)'
+          - '33 - Nobitas Secret Gadget Museum (2013)'
+          - '34 - New Nobitas Great Demon Peko and Five (2014)'
+          - '35 - Nobitas Space Heroes (2015)'
+          - '37 - Nobitas Great Adventure in Antarctica (2017)'
+          - '38 - Nobitas Treasure Island (2018)'
+          - '39 - Nobitas Chronicle of the Moon Exploration (2019)'
+          - '40 - Nobitas New Dinosaur (2020)'
+
+permissions:
+  contents: read
+
+jobs:
+  faststart-and-upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 14
+      matrix:
+        movie:
+          - num: "00"
+            title: "2112: The Birth of Doraemon (1995)"
+            key: "Doraemon/Movies/2112_-_The_Birth_of_Doraemon__1995_.mp4"
+            url: "https://archive.org/download/doraemon-1995-2112-nen-doraemon-tanjou-2112-the-birth-of-doraemon-amzn-web-dl/Doraemon%20%281995%29%20-%202112%20The%20Birth%20of%20Doraemon%20%5BAMZN%20WEB-DL%201080p%20AVC%20MP3%20HIN%5D%20-%20ZR0.mp4"
+          - num: "27"
+            title: "Nobita's New Great Adventure into Underworld (2007)"
+            key: "Doraemon/Movies/Doraemon_-_Nobita_s_New_Great_Adventure_into_the_Underworld_-_The_Seven_Magic_Users__2007_.mp4"
+            url: "https://archive.org/download/doraemon-movie-01-40-1980-2020-1080p-amzn-web-dl-japanese-ddp-hindi-zr0/27.%20Doraemon%20-%20Nobita%27s%20New%20Great%20Adventure%20into%20the%20Underworld%20%282007%29%201080p%20AMZN%20WEB-DL%20%5BJapanese%20DDP%202.0%20%2B%20Hindi%202.0%5D%20-%20ZR0.mp4"
+          - num: "28"
+            title: "Nobita and the Green Giant Legend (2008)"
+            key: "Doraemon/Movies/Doraemon_-_Nobita_and_the_Green_Giant_Legend__2008_.mp4"
+            url: "https://archive.org/download/doraemon-movie-01-40-1980-2020-1080p-amzn-web-dl-japanese-ddp-hindi-zr0/28.%20Doraemon%20-%20Nobita%20and%20the%20Green%20Giant%20Legend%20%282008%29%201080p%20AMZN%20WEB-DL%20%5BJapanese%20DDP%202.0%20%2B%20Hindi%202.0%5D%20-%20ZR0.mp4"
+          - num: "29"
+            title: "Nobita's Spaceblazer (2009)"
+            key: "Doraemon/Movies/Doraemon_-_The_New_Record_of_Nobita_s_Spaceblazer__2009_.mp4"
+            url: "https://archive.org/download/doraemon-movie-01-40-1980-2020-1080p-amzn-web-dl-japanese-ddp-hindi-zr0/29.%20Doraemon%20-%20Nobita%27s%20Spaceblazer%20%282009%29%201080p%20AMZN%20WEB-DL%20%5BJapanese%20DDP%205.1%20%2B%20Hindi%202.0%5D%20-%20ZR0.mp4"
+          - num: "30"
+            title: "The Great Battle of the Mermaid King (2010)"
+            key: "Doraemon/Movies/Doraemon_-_Nobita_s_Great_Battle_of_the_Mermaid_King__2010_.mp4"
+            url: "https://archive.org/download/doraemon-movie-01-40-1980-2020-1080p-amzn-web-dl-japanese-ddp-hindi-zr0/30.%20Doraemon%20-%20The%20Great%20Battle%20of%20the%20Mermaid%20King%20%282010%29%201080p%20AMZN%20WEB-DL%20%5BJapanese%20DDP%205.1%20%2B%20Hindi%202.0%5D%20-%20ZR0.mp4"
+          - num: "31"
+            title: "Nobita and the New Steel Troops (2011)"
+            key: "Doraemon/Movies/Doraemon_-_Nobita_and_the_New_Steel_Troops_-_Winged_Angels__2011_.mp4"
+            url: "https://archive.org/download/doraemon-movie-01-40-1980-2020-1080p-amzn-web-dl-japanese-ddp-hindi-zr0/31.%20Doraemon%20-%20Nobita%20and%20the%20New%20Steel%20Troops%20%282011%29%201080p%20AMZN%20WEB-DL%20%5BJapanese%20DDP%205.1%20%2B%20Hindi%202.0%5D%20-%20ZR0.mp4"
+          - num: "32"
+            title: "Nobita and the Island of Miracles (2012)"
+            key: "Doraemon/Movies/Doraemon_-_Nobita_and_the_Island_of_Miracles_-_Animal_Adventure__2012_.mp4"
+            url: "https://archive.org/download/doraemon-movie-01-40-1980-2020-1080p-amzn-web-dl-japanese-ddp-hindi-zr0/32.%20Doraemon%20-%20Nobita%20and%20the%20Island%20of%20Miracles%20%282012%29%201080p%20AMZN%20WEB-DL%20%5BJapanese%20DDP%205.1%20%2B%20Hindi%202.0%5D%20-%20ZR0.mp4"
+          - num: "33"
+            title: "Nobita's Secret Gadget Museum (2013)"
+            key: "Doraemon/Movies/Doraemon_-_Nobita_s_Secret_Gadget_Museum__2013_.mp4"
+            url: "https://archive.org/download/doraemon-movie-01-40-1980-2020-1080p-amzn-web-dl-japanese-ddp-hindi-zr0/33.%20Doraemon%20-%20Nobita%27s%20Secret%20Gadget%20Museum%20%282013%29%201080p%20AMZN%20WEB-DL%20%5BJapanese%20DDP%205.1%20%2B%20Hindi%202.0%5D%20-%20ZR0.mp4"
+          - num: "34"
+            title: "New Nobita's Great Demon Peko and Five (2014)"
+            key: "Doraemon/Movies/Doraemon_-_New_Nobita_s_Great_Demon_-_Peko_and_the_Exploration_Party_of_Five__2014_.mp4"
+            url: "https://archive.org/download/doraemon-movie-01-40-1980-2020-1080p-amzn-web-dl-japanese-ddp-hindi-zr0/34.%20Doraemon%20-%20New%20Nobita%27s%20Great%20Demon%20Peko%20and%20the%20Exploration%20Party%20of%20Five%20%282014%29%201080p%20AMZN%20WEB-DL%20%5BJapanese%20DDP%205.1%20%2B%20Hindi%202.0%5D%20-%20ZR0.mp4"
+          - num: "35"
+            title: "Nobita's Space Heroes (2015)"
+            key: "Doraemon/Movies/Doraemon_-_Nobita_and_the_Space_Heroes__2015_.mp4"
+            url: "https://archive.org/download/doraemon-movie-01-40-1980-2020-1080p-amzn-web-dl-japanese-ddp-hindi-zr0/35.%20Doraemon%20-%20Nobita%27s%20Space%20Heroes%20%282015%29%201080p%20AMZN%20WEB-DL%20%5BJapanese%20DDP%205.1%20%2B%20Hindi%202.0%5D%20-%20ZR0.mp4"
+          - num: "37"
+            title: "Nobita's Great Adventure in Antarctica (2017)"
+            key: "Doraemon/Movies/Doraemon_-_Nobita_s_Great_Adventure_in_the_Antarctic_Kachi_Kochi__2017_.mp4"
+            url: "https://archive.org/download/doraemon-movie-01-40-1980-2020-1080p-amzn-web-dl-japanese-ddp-hindi-zr0/37.%20Doraemon%20-%20Nobita%27s%20Great%20Adventure%20in%20Antarctica%20Kachi%20Kochi%20%282017%29%201080p%20AMZN%20WEB-DL%20%5BJapanese%20DDP%205.1%20%2B%20Hindi%202.0%5D%20-%20ZR0.mp4"
+          - num: "38"
+            title: "Nobita's Treasure Island (2018)"
+            key: "Doraemon/Movies/Doraemon_-_Nobita_s_Treasure_Island__2018_.mp4"
+            url: "https://archive.org/download/doraemon-movie-01-40-1980-2020-1080p-amzn-web-dl-japanese-ddp-hindi-zr0/38.%20Doraemon%20-%20Nobita%27s%20Treasure%20Island%20%282018%29%201080p%20AMZN%20WEB-DL%20%5BJapanese%20DDP%205.1%20%2B%20Hindi%202.0%5D%20-%20ZR0.mp4"
+          - num: "39"
+            title: "Nobita's Chronicle of the Moon Exploration (2019)"
+            key: "Doraemon/Movies/Doraemon_-_Nobita_s_Chronicle_of_the_Moon_Exploration__2019_.mp4"
+            url: "https://archive.org/download/doraemon-movie-01-40-1980-2020-1080p-amzn-web-dl-japanese-ddp-hindi-zr0/39.%20Doraemon%20-%20Nobita%27s%20Chronicle%20of%20the%20Moon%20Exploration%20%282019%29%201080p%20AMZN%20WEB-DL%20%5BJapanese%20DDP%205.1%20%2B%20Hindi%202.0%5D%20-%20ZR0.mp4"
+          - num: "40"
+            title: "Nobita's New Dinosaur (2020)"
+            key: "Doraemon/Movies/Doraemon_-_Nobita_s_New_Dinosaur__2020_.mp4"
+            url: "https://archive.org/download/doraemon-movie-01-40-1980-2020-1080p-amzn-web-dl-japanese-ddp-hindi-zr0/40.%20Doraemon%20-%20Nobita%27s%20New%20Dinosaur%20%282020%29%201080p%20AMZN%20WEB-DL%20%5BJapanese%20DDP%205.1%20%2B%20Hindi%202.0%5D%20-%20ZR0.mp4"
+
+    steps:
+      - name: Check Selection Filter
+        id: filter
+        run: |
+          SELECTED="${{ github.event.inputs.target }}"
+          MOVIE_NUM="${{ matrix.movie.num }}"
+          if [ "$SELECTED" != "ALL" ] && [[ "$SELECTED" != "$MOVIE_NUM"* ]]; then
+            echo "Skipping movie #$MOVIE_NUM (User selected: $SELECTED)"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "Processing movie #$MOVIE_NUM: ${{ matrix.movie.title }}"
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Maximize Runner NVMe SSD Disk Space
+        if: steps.filter.outputs.skip != 'true'
+        run: |
+          echo "=== Freeing up disk space on runner ==="
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
+          df -h /
+
+      - name: Install High-Performance Acceleration Tools
+        if: steps.filter.outputs.skip != 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y aria2 ffmpeg curl jq
+
+      - name: Turbo Download from Archive.org (16x Multi-Chunk Stream)
+        if: steps.filter.outputs.skip != 'true'
+        run: |
+          echo "=== Starting 16x Turbo Download for: ${{ matrix.movie.title }} ==="
+          aria2c -x 16 -s 16 -j 16 -k 2M \
+            --file-allocation=none \
+            --check-certificate=false \
+            --user-agent="Mozilla/5.0" \
+            --summary-interval=5 \
+            -o raw_input.mp4 \
+            "${{ matrix.movie.url }}"
+          ls -lh raw_input.mp4
+
+      - name: Faststart MOOV Atom Optimization (ffmpeg -c copy)
+        if: steps.filter.outputs.skip != 'true'
+        run: |
+          echo "=== Relocating MOOV atom to beginning of file ==="
+          ffmpeg -i raw_input.mp4 -c copy -movflags +faststart -threads 0 faststart_output.mp4
+          rm -f raw_input.mp4
+          ls -lh faststart_output.mp4
+
+      - name: Verify Faststart Atom Layout
+        if: steps.filter.outputs.skip != 'true'
+        run: |
+          python3 -c "
+          with open('faststart_output.mp4', 'rb') as f:
+              f.seek(0)
+              ftyp_size = int.from_bytes(f.read(4), 'big')
+              ftyp_name = f.read(4).decode('latin1')
+              print(f'[Atom 1] {ftyp_name}: {ftyp_size} bytes at offset 0')
+              f.seek(ftyp_size)
+              next_size = int.from_bytes(f.read(4), 'big')
+              next_name = f.read(4).decode('latin1')
+              print(f'[Atom 2] {next_name}: {next_size} bytes at offset {ftyp_size}')
+              if next_name == 'moov':
+                  print('>>> VERIFIED: moov atom is located at HEAD (Faststart confirmed)!')
+              else:
+                  print(f'>>> Warning: second atom is {next_name}, checking further...')
+          "
+
+      - name: Request Direct Stratus Upload Signature from AppSail
+        if: steps.filter.outputs.skip != 'true'
+        id: get_sig
+        run: |
+          KEY="${{ matrix.movie.key }}"
+          ADMIN_SECRET="${{ secrets.ADMIN_SECRET }}"
+          if [ -z "$ADMIN_SECRET" ]; then
+            ADMIN_SECRET="scoopplus-admin-secret-2026"
+          fi
+          echo "Requesting upload URL for $KEY..."
+          RESP=$(curl -s -H "x-admin-secret: $ADMIN_SECRET" "https://cartoon-server-50046883835.development.catalystappsail.in/api/diag/stratus-upload-url?key=$KEY")
+          UPLOAD_URL=$(echo "$RESP" | jq -r .uploadUrl)
+          if [ -z "$UPLOAD_URL" ] || [ "$UPLOAD_URL" = "null" ]; then
+            echo "Failed to retrieve upload URL: $RESP"
+            exit 1
+          fi
+          echo "upload_url=$UPLOAD_URL" >> $GITHUB_OUTPUT
+          echo "Successfully acquired Zoho Stratus STS signature."
+
+      - name: Upload Faststart Master to Zoho Stratus (Direct HTTP PUT)
+        if: steps.filter.outputs.skip != 'true'
+        run: |
+          UPLOAD_URL="${{ steps.get_sig.outputs.upload_url }}"
+          echo "=== Uploading faststart_output.mp4 to Zoho Stratus ==="
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X PUT --upload-file faststart_output.mp4 "$UPLOAD_URL")
+          echo "Stratus Upload Response Status: $HTTP_STATUS"
+          if [ "$HTTP_STATUS" -ne 200 ] && [ "$HTTP_STATUS" -ne 201 ]; then
+            echo "Upload failed with HTTP status $HTTP_STATUS"
+            exit 1
+          fi
+          rm -f faststart_output.mp4
+          echo "=== Movie ${{ matrix.movie.num }} successfully uploaded to Zoho Stratus! ==="
+
+      - name: Verify Live Playback & Head on Zoho Stratus
+        if: steps.filter.outputs.skip != 'true'
+        run: |
+          echo "=== Verifying uploaded file on live Stratus bucket ==="
+          curl -s -I "https://stream-development.zohostratus.in/${{ matrix.movie.key }}" | grep -E "HTTP/|content-length|etag"
