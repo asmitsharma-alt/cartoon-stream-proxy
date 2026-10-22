@@ -118,8 +118,14 @@ jobs:
       - name: Install High-Performance Acceleration Tools
         if: steps.filter.outputs.skip != 'true'
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y aria2 ffmpeg curl jq
+          if ! command -v aria2c &> /dev/null; then
+            sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout="15" update || true
+            DEBIAN_FRONTEND=noninteractive sudo apt-get install -y --no-install-recommends aria2 || true
+          fi
+          aria2c --version | head -n 1
+          ffmpeg -version | head -n 1
+          curl --version | head -n 1
+          jq --version
 
       - name: Turbo Download from Archive.org (16x Multi-Chunk Stream)
         if: steps.filter.outputs.skip != 'true'
