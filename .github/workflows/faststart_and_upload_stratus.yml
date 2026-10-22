@@ -108,6 +108,9 @@ jobs:
       - name: Install High-Performance Acceleration Tools
         if: steps.filter.outputs.skip != 'true'
         run: |
+          sudo killall -9 apt-get apt unattended-upgrades dpkg 2>/dev/null || true
+          sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* 2>/dev/null || true
+          sudo dpkg --configure -a 2>/dev/null || true
           sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout="15" update -qq || true
           DEBIAN_FRONTEND=noninteractive sudo apt-get install -y --no-install-recommends ffmpeg aria2 curl jq
           ffmpeg -version | head -n 1
