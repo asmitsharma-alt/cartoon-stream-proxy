@@ -4,26 +4,10 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: 'Select movie to process (or ALL for max parallel)'
+        description: 'Select movie number(s) to process (ALL, REMAINING, or specific numbers like 31, 35, 37, 39)'
         required: true
         default: 'ALL'
-        type: choice
-        options:
-          - 'ALL'
-          - '00 - 2112 The Birth of Doraemon (1995)'
-          - '27 - Nobitas New Great Adventure into Underworld (2007)'
-          - '28 - Nobita and the Green Giant Legend (2008)'
-          - '29 - Nobitas Spaceblazer (2009)'
-          - '30 - The Great Battle of the Mermaid King (2010)'
-          - '31 - Nobita and the New Steel Troops (2011)'
-          - '32 - Nobita and the Island of Miracles (2012)'
-          - '33 - Nobitas Secret Gadget Museum (2013)'
-          - '34 - New Nobitas Great Demon Peko and Five (2014)'
-          - '35 - Nobitas Space Heroes (2015)'
-          - '37 - Nobitas Great Adventure in Antarctica (2017)'
-          - '38 - Nobitas Treasure Island (2018)'
-          - '39 - Nobitas Chronicle of the Moon Exploration (2019)'
-          - '40 - Nobitas New Dinosaur (2020)'
+        type: string
 
 permissions:
   contents: read
@@ -100,12 +84,18 @@ jobs:
         run: |
           SELECTED="${{ github.event.inputs.target }}"
           MOVIE_NUM="${{ matrix.movie.num }}"
-          if [ "$SELECTED" != "ALL" ] && [[ "$SELECTED" != "$MOVIE_NUM"* ]]; then
-            echo "Skipping movie #$MOVIE_NUM (User selected: $SELECTED)"
-            echo "skip=true" >> $GITHUB_OUTPUT
-          else
+          if [ -z "$SELECTED" ] || [ "$SELECTED" = "ALL" ]; then
             echo "Processing movie #$MOVIE_NUM: ${{ matrix.movie.title }}"
             echo "skip=false" >> $GITHUB_OUTPUT
+          elif [ "$SELECTED" = "REMAINING" ] && [[ " 31 35 37 39 " =~ " $MOVIE_NUM " ]]; then
+            echo "Processing remaining movie #$MOVIE_NUM: ${{ matrix.movie.title }}"
+            echo "skip=false" >> $GITHUB_OUTPUT
+          elif [[ "$SELECTED" == *"$MOVIE_NUM"* ]]; then
+            echo "Processing matched movie #$MOVIE_NUM: ${{ matrix.movie.title }}"
+            echo "skip=false" >> $GITHUB_OUTPUT
+          else
+            echo "Skipping movie #$MOVIE_NUM (User selected: $SELECTED)"
+            echo "skip=true" >> $GITHUB_OUTPUT
           fi
 
       - name: Maximize Runner NVMe SSD Disk Space
